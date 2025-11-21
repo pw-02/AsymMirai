@@ -1,0 +1,5 @@
+﻿exam_id,patient_id,laterality,view,file_path,years_to_cancer,years_to_last_followup,desc,spot_mag,FinalImageType
+0,0,L,CC,C:\Users\pw\projects\AsymMirai\data\00a7a306c763ab5f0cb6a846825b7d04\2ce50597d3a7711d30b9ec3a0aa25623.png,100,4.035616438,Screening Bilateral,,2D
+0,0,L,MLO,C:\Users\pw\projects\AsymMirai\data\00a7a306c763ab5f0cb6a846825b7d04\6c4c8ea04f9fd60b26e6480d988c1e58.png,100,4.035616438,Screening Bilateral,,2D
+0,0,R,CC,C:\Users\pw\projects\AsymMirai\data\00a7a306c763ab5f0cb6a846825b7d04\274942d5c9036c89aca0b16a36d2b076.png,100,4.035616438,Screening Bilateral,,2D
+0,0,R,MLO,C:\Users\pw\projects\AsymMirai\data\00a7a306c763ab5f0cb6a846825b7d04\c7ae763953bfd86e922d9259e2c7afc7.png,100,4.035616438,Screening Bilateral,,2D
