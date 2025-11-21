@@ -14,7 +14,7 @@ metadata
 *.swo
 *.swn
 secrets/
-*.csv
+# *.csv
 # Logs
 *.out
 *.pdf
