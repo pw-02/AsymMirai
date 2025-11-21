@@ -144,7 +144,9 @@ class MiraiMetadataset(Dataset):
         # img = torch.tensor(img).expand(3, *img.shape)
 
         if self.resizer is not None:
-            img = self.resizer(img, augment=self.mode=="training")
+            # img = self.resizer(img, augment=self.mode=="training")
+            img = self.resizer(img)
+
         
         return (img, path)
     
