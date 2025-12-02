@@ -85,7 +85,7 @@ def plot_roc(labels, probs, title):
     plt.plot([0, 1], [0, 1], "k--")
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
-    plt.title(title)
+    # plt.title(title)
     plt.legend()
     plt.grid(True)
     plt.show()
@@ -106,7 +106,7 @@ def main():
     print("Metadata loaded:", meta.shape)
 
     print("\n=== Loading AsymMirai predictions ===")
-    preds = pd.read_csv("validation_predictions.csv")
+    preds = pd.read_csv("validation_predictions2.csv")
     print("Predictions loaded:", preds.shape)
 
     # Clean tensor columns
