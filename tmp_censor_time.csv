@@ -1,0 +1,1 @@
+patient_id,exam_id,exam_date,dicom_path,view,laterality,spot_mag,developed_cancer,years_to_cancer,last_followup_date,years_to_last_followup,desc,prediction_neg,prediction_pos,y_argmin_cc,x_argmin_cc,y_argmin_mlo,x_argmin_mlo
