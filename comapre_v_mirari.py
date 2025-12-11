@@ -1,3 +1,4 @@
+import ast
 import re
 from matplotlib import pyplot as plt
 import matplotlib
@@ -180,43 +181,34 @@ def construct_dataset(asym_data_file, mirai_data_file):
     return filtered
 
 
-def find_missing_predictions(asym_preds, mirai_preds):
-    asym_exam_ids = set(asym_preds['exam_id'].unique())
-    mirai_exam_ids = set(mirai_preds['exam_id'].unique())
-    missing_in_asym = mirai_exam_ids - asym_exam_ids
-    missing_in_mirai = asym_exam_ids - mirai_exam_ids
-    print("Missing in Asym:", missing_in_asym)
-    print("Missing in Mirai:", missing_in_mirai)
-    return missing_in_asym, missing_in_mirai
 
+# def compute_auc_for_asymm(probs, censor_times, golds, followup, calculate_curve=False):
+#     def include_exam_and_determine_label(censor_time, gold):
+#         valid_pos = gold and censor_time <= followup
+#         valid_neg = censor_time >= followup
+#         included, label = (valid_pos or valid_neg), valid_pos
+#         return included, label
 
-def compute_auc_for_asymm(probs, censor_times, golds, followup, calculate_curve=False):
-    def include_exam_and_determine_label(censor_time, gold):
-        valid_pos = gold and censor_time <= followup
-        valid_neg = censor_time >= followup
-        included, label = (valid_pos or valid_neg), valid_pos
-        return included, label
-
-    probs_for_eval, golds_for_eval = [], []
+#     probs_for_eval, golds_for_eval = [], []
     
-    for prob_arr, censor_time, gold in zip(probs, censor_times, golds):
-        include, label = include_exam_and_determine_label(censor_time, gold)
-        if include:
-            probs_for_eval.append(prob_arr)
-            golds_for_eval.append(label)
-    try:
-        auc = sklearn.metrics.roc_auc_score(golds_for_eval, probs_for_eval, average='samples')
-        avg_precision = sklearn.metrics.average_precision_score(golds_for_eval, probs_for_eval, average='samples')
-        if calculate_curve:
-                fpr, tpr, thresh = sklearn.metrics.roc_curve(golds_for_eval, probs_for_eval)
-                plt.plot(fpr, tpr)
-                plt.title(f"Year {followup + 1} Asymmetry ROC Curve")
-                plt.show()
-    except Exception as e:
-        print("Failed to calculate AUC because {}".format(e))
-        auc, avg_precision = ['NA']*2
+#     for prob_arr, censor_time, gold in zip(probs, censor_times, golds):
+#         include, label = include_exam_and_determine_label(censor_time, gold)
+#         if include:
+#             probs_for_eval.append(prob_arr)
+#             golds_for_eval.append(label)
+#     try:
+#         auc = sklearn.metrics.roc_auc_score(golds_for_eval, probs_for_eval, average='samples')
+#         avg_precision = sklearn.metrics.average_precision_score(golds_for_eval, probs_for_eval, average='samples')
+#         if calculate_curve:
+#                 fpr, tpr, thresh = sklearn.metrics.roc_curve(golds_for_eval, probs_for_eval)
+#                 plt.plot(fpr, tpr)
+#                 plt.title(f"Year {followup + 1} Asymmetry ROC Curve")
+#                 plt.show()
+#     except Exception as e:
+#         print("Failed to calculate AUC because {}".format(e))
+#         auc, avg_precision = ['NA']*2
 
-    return auc, avg_precision, golds_for_eval
+#     return auc, avg_precision, golds_for_eval
 
 def get_label(row, max_followup=10, mode='censor_time'):
     any_cancer = row["years_to_cancer"] < max_followup
@@ -290,11 +282,11 @@ def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
     merged_df_filtered['any_cancer'] = res
     merged_df_filtered_simplified = merged_df_filtered.drop_duplicates(['exam_id'])
 
-    merged_df_filtered_copy = merged_df_filtered.copy()
-    merged_df_filtered_copy.to_csv('tmp_merged_df_filtered_copy.csv', index=False)
+    # merged_df_filtered_copy = merged_df_filtered.copy()
+    # merged_df_filtered_copy.to_csv('tmp_merged_df_filtered_copy.csv', index=False)
 
-    merged_df_filtered_copy = pd.read_csv('tmp_merged_df_filtered_copy.csv')
-    merged_df_filtered_copy['prediction_pos']
+    # merged_df_filtered_copy = pd.read_csv('tmp_merged_df_filtered_copy.csv')
+    # merged_df_filtered_copy['prediction_pos']
 
 
     merged_df_filtered_simplified['y_argmin_cc'] = merged_df_filtered_simplified.apply(correct_y_argmin_cc, axis=1)
@@ -321,7 +313,7 @@ def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
                                         year)
         for i, v in enumerate(probs_asymmirai):
             if not type(v) is float:
-                probs_asymmirai[i] = v[1]
+                probs_asymmirai[i] = float(v[1])
         print(len(probs_asymmirai))
         df = pd.DataFrame({
             'AsymMirai': probs_asymmirai,
@@ -354,6 +346,11 @@ if __name__ == "__main__":
     asym_preds_file = 'tmp_val_run.csv'
     filtered = pd.read_csv(asym_input_file)
     asym_preds = pd.read_csv(asym_preds_file)
+    
+    print(asym_preds.columns)
+
+
+
     merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
 
     craete_asum_auc_plot(merged_df_filtered)
