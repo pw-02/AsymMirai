@@ -89,7 +89,7 @@ def resize_and_normalize(img, use_crop=False):
 def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
          print_every=50, save_every=200):
 
-    device = 0
+    device = 'cpu' if not torch.cuda.is_available() else 0
     torch.cuda.set_device(device)
 
     # Load model
