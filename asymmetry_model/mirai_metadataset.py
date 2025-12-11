@@ -55,7 +55,7 @@ class MiraiMetadataset(Dataset):
                     indices = np.logical_and(cur_exam['view'].values == view, cur_exam['laterality'].values == side)
                     return indices
                 
-                if len(cur_exam[indices_for_side_view('L')]['file_path'].values) == 0:
+                if len(cur_exam[indices_for_side_view('L')]['dicom_path'].values) == 0:
                     if verbose:
                         print("Missing {} {} view for exam {}".format(view, laterality, eid))
                     complete_exam = False
@@ -63,24 +63,24 @@ class MiraiMetadataset(Dataset):
                     
                 elif not self.multiple_pairs_per_exam:
                     for laterality in ['L', 'R']: 
-                        if len(cur_exam[indices_for_side_view(laterality)]['file_path'].values) == 0:
+                        if len(cur_exam[indices_for_side_view(laterality)]['dicom_path'].values) == 0:
                             if verbose:
                                 print("Missing {} {} view for exam {}".format(view, laterality, eid))
                             complete_exam = False
                             continue
-                        old_path = cur_exam[indices_for_side_view(laterality)]['file_path'].values[-1]
+                        old_path = cur_exam[indices_for_side_view(laterality)]['dicom_path'].values[-1]
                         patient_exam[view][laterality] = old_path
                         
                 else:
-                    for l_path in cur_exam[indices_for_side_view('L')]['file_path'].values:
-                        cur_row = cur_exam[cur_exam['file_path'] == l_path]
+                    for l_path in cur_exam[indices_for_side_view('L')]['dicom_path'].values:
+                        cur_row = cur_exam[cur_exam['dicom_path'] == l_path]
                         # This line is checking for nan
                         if type(cur_row['matched_image']) is str:
                             patient_exam[view].append({'L': l_path, 'R': cur_row['matched_image'].values[0]})
                         else:
-                            r_imgs = cur_exam[indices_for_side_view('R')]['file_path'].values
+                            r_imgs = cur_exam[indices_for_side_view('R')]['dicom_path'].values
                             if len(r_imgs) > 0:
-                                patient_exam[view].append({'L': l_path, 'R': cur_exam[indices_for_side_view('R')]['file_path'].values[0]})
+                                patient_exam[view].append({'L': l_path, 'R': cur_exam[indices_for_side_view('R')]['dicom_path'].values[0]})
                         
 
             if allow_incomplete or complete_exam:
