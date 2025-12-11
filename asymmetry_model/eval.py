@@ -112,6 +112,7 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
     val_dataset = MiraiMetadatasetS3(
         val_df, resizer=resize_and_normalize,
         mode="val", align_images=align_images,
+        s3_bucket='embdedpng',
         multiple_pairs_per_exam=False
     )
 
