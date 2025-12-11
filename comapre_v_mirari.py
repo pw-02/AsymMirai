@@ -1,3 +1,4 @@
+import re
 from matplotlib import pyplot as plt
 import matplotlib
 import numpy as np
@@ -235,6 +236,31 @@ def get_label(row, max_followup=10, mode='censor_time'):
         return censor_time
     else:
         return any_cancer
+    
+def str_to_arr(arr_str):
+    #if type(arr_str) is not str:
+    #    return None
+    arr_str = re.sub('\s+', ',', arr_str)
+    arr_str = arr_str.replace('[,', '[')
+    return np.array(eval(arr_str))
+
+def correct_y_argmin_cc(row):
+    if type(row['y_argmin_cc']) is float:
+        return int(row['y_argmin_cc'])
+    armin_arr = str_to_arr(row['y_argmin_cc'])
+    #if armin_arr is None:
+    #    return None
+    argmin = armin_arr[int(row['x_argmin_cc'])]
+    return argmin
+
+def correct_y_argmin_mlo(row):
+    if type(row['y_argmin_mlo']) is float:
+        return int(row['y_argmin_mlo'])
+    armin_arr = str_to_arr(row['y_argmin_mlo'])
+    #if armin_arr is None:
+    #    return None
+    argmin = armin_arr[int(row['x_argmin_mlo'])]
+    return argmin
 
 def get_arrs_for_auc(probs, censor_times, golds, followup):
     
@@ -252,76 +278,36 @@ def get_arrs_for_auc(probs, censor_times, golds, followup):
             golds_for_eval.append(label)
     return probs_for_eval, golds_for_eval
 
-if __name__ == "__main__":
 
-    asym_input_file = 'data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv'
-    mirai_input_file = 'data/mirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW.csv'
-    asym_preds_file = 'asym_validation_predictions1.csv'
-    mirai_preds_file = 'validation_predictions_mirai.csv'
+def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
 
-    # filtered = construct_dataset(asym_input_file, mirai_input_file)
-    filtered = pd.read_csv(asym_input_file)
+    # merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
 
-    print(filtered['patient_id'].unique().shape)
-    print(filtered['exam_id'].unique().shape)
-    # If we're missing any, run AsymMirai and grab those results
-    asym_preds = pd.read_csv(asym_preds_file)
-
-
-    
-    missing_asym_exams = filtered[~filtered['exam_id'].isin(asym_preds['exam_id'])]['exam_id'].unique()
-    if missing_asym_exams.shape[0] > 0:
-
-        #remove missing exams from filtered
-        filtered = filtered[~filtered['exam_id'].isin(missing_asym_exams)]
-
-
-
-        # model = torch.load('snapshots/trained_asymmirai.pt',
-        #                 weights_only=False,
-        #                 map_location = torch.device(f'cpu:0'))
-        # val_df = filtered
-        # print(val_df['exam_id'].unique().shape)
-        # val_df = val_df[val_df['exam_id'].isin(missing_asym_exams)]
-        # print(val_df['exam_id'].unique().shape)
-        # missing_preds = run_validation(model, val_df)
-        # asym_preds = pd.concat([asym_preds, missing_preds])
-
-    # # 3) Grab Mirai predictions, and figure out which (if any) are missing
-    # mirai_preds = pd.read_csv(mirai_preds_file, header=None)
-    # for i in range(5):
-    #     mirai_preds['year_{}_risk'.format(i+1)] = mirai_preds[4+i]
-    # def get_exam_id(row):
-    #     file_path = row[0]
-    #     return filtered[filtered['file_path'] == file_path]['exam_id'].values[0]
-    # mirai_preds['exam_id'] = mirai_preds.apply(get_exam_id, axis=1)
-    # missing_mirai_exams = filtered[~filtered['exam_id'].isin(mirai_preds['exam_id'])]['exam_id'].unique()
-    # # If we're missing any, run AsymMirai and grab those results
-    # if missing_mirai_exams.shape[0] > 0:
-    #     val_df = filtered
-    #     print(val_df['exam_id'].unique().shape)
-    #     val_df = val_df[val_df['exam_id'].isin(missing_mirai_exams)]
-    #     val_df['split_group'] = 'test'
-    #     val_df.loc[:, 'years_to_last_followup'] = 100
-    #     print(val_df['exam_id'].unique().shape)
-        
-    #     val_df[['exam_id','patient_id','laterality','view',
-    #         'file_path','years_to_cancer','years_to_last_followup',
-    #             'split_group']].to_csv('./tmp_val_input_for_mirai_2.csv', index=False)
-        
-    merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
     merged_df_filtered['exam_id'].unique().shape
     res = merged_df_filtered.apply(get_label, args=(10, 'censor_time'), axis=1)
-    #save res to file
-    res.to_csv('tmp_censor_time.csv', index=False)
     merged_df_filtered['censor_time'] = res
     res = merged_df_filtered.apply(get_label, args=(10, 'any_cancer'), axis=1)
     merged_df_filtered['any_cancer'] = res
     merged_df_filtered_simplified = merged_df_filtered.drop_duplicates(['exam_id'])
+
     merged_df_filtered_copy = merged_df_filtered.copy()
     merged_df_filtered_copy.to_csv('tmp_merged_df_filtered_copy.csv', index=False)
+
     merged_df_filtered_copy = pd.read_csv('tmp_merged_df_filtered_copy.csv')
     merged_df_filtered_copy['prediction_pos']
+
+
+    merged_df_filtered_simplified['y_argmin_cc'] = merged_df_filtered_simplified.apply(correct_y_argmin_cc, axis=1)
+    merged_df_filtered_simplified['y_argmin_mlo'] = merged_df_filtered_simplified.apply(correct_y_argmin_mlo, axis=1)
+
+    merged_df_filtered_simplified['mlo_y_argmin'] = merged_df_filtered_simplified['y_argmin_mlo']
+    merged_df_filtered_simplified['mlo_x_argmin'] = merged_df_filtered_simplified['x_argmin_mlo']
+    merged_df_filtered_simplified['cc_y_argmin'] = merged_df_filtered_simplified['y_argmin_cc']
+    merged_df_filtered_simplified['cc_x_argmin'] = merged_df_filtered_simplified['x_argmin_cc']
+
+    merged_df_filtered_simplified['asymmetries'] = merged_df_filtered_simplified['prediction_pos']
+    merged_df_filtered_simplified['mlo_asym'] = merged_df_filtered_simplified['asymmetries']
+    merged_df_filtered_simplified['cc_asym'] = merged_df_filtered_simplified['asymmetries']
 
     legend = []
     for year in range(5):
@@ -339,7 +325,7 @@ if __name__ == "__main__":
         print(len(probs_asymmirai))
         df = pd.DataFrame({
             'AsymMirai': probs_asymmirai,
-            # 'Mirai': probs_mirai
+            'Mirai': probs_asymmirai
         })
         roc = pyroc.ROC(labels,
                         df)
@@ -355,11 +341,141 @@ if __name__ == "__main__":
             year+1, auc, roc.ci(0.05)[:, 1][0], roc.ci(0.05)[:, 1][1])
         )
         print(f'AsymMirai year {year + 1} 95% CI: \t', roc.ci(0.05)[:, 0])
-        #print(f'Mirai year {year
-        plt.legend(legend, prop={'size': 20})
-        plt.xlabel("False Positive Rate")
-        plt.ylabel("True Positive Rate")
-        plt.show()
+        #print(f'Mirai year {year + 1} 95% CI: \t\t', roc.ci(0.05)[:, 1])
+    plt.legend(legend, prop={'size': 20})
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.show()
+
+
+if __name__ == "__main__":
+
+    asym_input_file = 'data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv'
+    asym_preds_file = 'tmp_val_run.csv'
+    filtered = pd.read_csv(asym_input_file)
+    asym_preds = pd.read_csv(asym_preds_file)
+    merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
+
+    craete_asum_auc_plot(merged_df_filtered)
+
+    #save merged_df_filtered to csv
+    # merged_df_filtered.to_csv('merged_df_filtered.csv', index=False)
+
+
+    # print(filtered['patient_id'].unique().shape)
+    # print(filtered['exam_id'].unique().shape)
+
+
+
+
+# if __name__ == "__main__":
+
+#     asym_input_file = 'data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv'
+#     mirai_input_file = 'data/mirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW.csv'
+#     asym_preds_file = 'asym_validation_predictions1.csv'
+#     mirai_preds_file = 'validation_predictions_mirai.csv'
+
+#     # filtered = construct_dataset(asym_input_file, mirai_input_file)
+#     filtered = pd.read_csv(asym_input_file)
+
+#     print(filtered['patient_id'].unique().shape)
+#     print(filtered['exam_id'].unique().shape)
+#     # If we're missing any, run AsymMirai and grab those results
+#     asym_preds = pd.read_csv(asym_preds_file)
+
+
+    
+#     missing_asym_exams = filtered[~filtered['exam_id'].isin(asym_preds['exam_id'])]['exam_id'].unique()
+#     if missing_asym_exams.shape[0] > 0:
+
+#         #remove missing exams from filtered
+#         filtered = filtered[~filtered['exam_id'].isin(missing_asym_exams)]
+
+
+
+#         # model = torch.load('snapshots/trained_asymmirai.pt',
+#         #                 weights_only=False,
+#         #                 map_location = torch.device(f'cpu:0'))
+#         # val_df = filtered
+#         # print(val_df['exam_id'].unique().shape)
+#         # val_df = val_df[val_df['exam_id'].isin(missing_asym_exams)]
+#         # print(val_df['exam_id'].unique().shape)
+#         # missing_preds = run_validation(model, val_df)
+#         # asym_preds = pd.concat([asym_preds, missing_preds])
+
+#     # # 3) Grab Mirai predictions, and figure out which (if any) are missing
+#     # mirai_preds = pd.read_csv(mirai_preds_file, header=None)
+#     # for i in range(5):
+#     #     mirai_preds['year_{}_risk'.format(i+1)] = mirai_preds[4+i]
+#     # def get_exam_id(row):
+#     #     file_path = row[0]
+#     #     return filtered[filtered['file_path'] == file_path]['exam_id'].values[0]
+#     # mirai_preds['exam_id'] = mirai_preds.apply(get_exam_id, axis=1)
+#     # missing_mirai_exams = filtered[~filtered['exam_id'].isin(mirai_preds['exam_id'])]['exam_id'].unique()
+#     # # If we're missing any, run AsymMirai and grab those results
+#     # if missing_mirai_exams.shape[0] > 0:
+#     #     val_df = filtered
+#     #     print(val_df['exam_id'].unique().shape)
+#     #     val_df = val_df[val_df['exam_id'].isin(missing_mirai_exams)]
+#     #     val_df['split_group'] = 'test'
+#     #     val_df.loc[:, 'years_to_last_followup'] = 100
+#     #     print(val_df['exam_id'].unique().shape)
+        
+#     #     val_df[['exam_id','patient_id','laterality','view',
+#     #         'file_path','years_to_cancer','years_to_last_followup',
+#     #             'split_group']].to_csv('./tmp_val_input_for_mirai_2.csv', index=False)
+        
+#     merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
+#     merged_df_filtered['exam_id'].unique().shape
+#     res = merged_df_filtered.apply(get_label, args=(10, 'censor_time'), axis=1)
+#     #save res to file
+#     res.to_csv('tmp_censor_time.csv', index=False)
+#     merged_df_filtered['censor_time'] = res
+#     res = merged_df_filtered.apply(get_label, args=(10, 'any_cancer'), axis=1)
+#     merged_df_filtered['any_cancer'] = res
+#     merged_df_filtered_simplified = merged_df_filtered.drop_duplicates(['exam_id'])
+#     merged_df_filtered_copy = merged_df_filtered.copy()
+#     merged_df_filtered_copy.to_csv('tmp_merged_df_filtered_copy.csv', index=False)
+#     merged_df_filtered_copy = pd.read_csv('tmp_merged_df_filtered_copy.csv')
+#     merged_df_filtered_copy['prediction_pos']
+
+#     legend = []
+#     for year in range(5):
+#         # probs_mirai, labels = get_arrs_for_auc(merged_df_filtered_simplified[f'year_{year+1}_risk'],
+#         #                                 merged_df_filtered_simplified['censor_time'],
+#         #                                 merged_df_filtered_simplified['any_cancer'],
+#         #                                 year)
+#         probs_asymmirai, labels = get_arrs_for_auc(merged_df_filtered_simplified[f'prediction_pos'],
+#                                         merged_df_filtered_simplified['censor_time'],
+#                                         merged_df_filtered_simplified['any_cancer'],
+#                                         year)
+#         for i, v in enumerate(probs_asymmirai):
+#             if not type(v) is float:
+#                 probs_asymmirai[i] = v[1]
+#         print(len(probs_asymmirai))
+#         df = pd.DataFrame({
+#             'AsymMirai': probs_asymmirai,
+#             # 'Mirai': probs_mirai
+#         })
+#         roc = pyroc.ROC(labels,
+#                         df)
+        
+#         fpr, tpr, thresh = sklearn.metrics.roc_curve(labels, probs_asymmirai)
+#         matplotlib.rc('xtick', labelsize=19) 
+#         matplotlib.rc('ytick', labelsize=19) 
+#         plt.rcParams.update({'axes.labelsize': 40})
+        
+#         plt.plot(fpr, tpr)
+#         auc = roc.auc[0, 1]
+#         legend.append("Year {:.0f} AUC: {:.2f} ({:.2f}, {:.2f})".format(
+#             year+1, auc, roc.ci(0.05)[:, 1][0], roc.ci(0.05)[:, 1][1])
+#         )
+#         print(f'AsymMirai year {year + 1} 95% CI: \t', roc.ci(0.05)[:, 0])
+#         #print(f'Mirai year {year
+#         plt.legend(legend, prop={'size': 20})
+#         plt.xlabel("False Positive Rate")
+#         plt.ylabel("True Positive Rate")
+#         plt.show()
 
 
 

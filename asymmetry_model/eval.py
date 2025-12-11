@@ -57,33 +57,36 @@ def get_centroid_activation(array, threshold=0.02):
     print(h_mean, w_mean, contiguous_w_max)
     return (h_mean, w_mean)
 
-
-
 def resize_and_normalize(img, use_crop=False):
     img_mean = 7699.5
     img_std = 11765.06
     target_size = (1664, 2048)
+    dummy_batch_dim = False
 
     if np.sum(img) == 0:
-        img = torch.tensor(img).expand(1, 3, *img.shape).float()
-        return F.interpolate(img, size=target_size, mode='bilinear')[0]
+        img = torch.tensor(img).expand(1, 3, *img.shape)\
+                        .type(torch.FloatTensor)
+        return F.upsample(img, size=(target_size[0], target_size[1]), mode='bilinear')[0]
 
-    dummy_batch_dim = False
+    # Adding a dummy batch dimension if necessary
     if len(img.shape) == 3:
         img = torch.unsqueeze(img, 0)
         dummy_batch_dim = True
 
     with torch.no_grad():
         if use_crop:
-            img = crop(torch.tensor((img - img_mean) / img_std))
+            img = crop(torch.tensor((img - img_mean)/img_std))
         else:
-            img = torch.tensor((img - img_mean) / img_std)
+            img = torch.tensor((img - img_mean)/img_std)
+        img = img.expand(1, 3, *img.shape)\
+                        .type(torch.FloatTensor)
+        img_resized = F.upsample(img, size=(target_size[0], target_size[1]), mode='bilinear')
 
-        img = img.expand(1, 3, *img.shape).float()
-        img_resized = F.interpolate(img, size=target_size, mode='bilinear')
-
-    return img_resized[0] if dummy_batch_dim else img_resized[0]
-
+    if dummy_batch_dim:
+        return img_resized[0]
+    else:
+        return img_resized[0]
+    
 
 
 def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
@@ -98,7 +101,7 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
         weights_only=False,
         map_location=torch.device(f'cuda:{device}')
     )
-    model.eval()
+    model = model.eval()
     model.latent_h = 5
     model.latent_w = 5
     model.topk_for_heatmap = None
@@ -111,13 +114,16 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
     val_df = pd.read_csv('data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv')
     val_dataset = MiraiMetadatasetS3(
         val_df, resizer=resize_and_normalize,
-        mode="val", align_images=align_images,
+        mode="val", 
+        align_images=align_images,
         s3_bucket='embdedpng',
         multiple_pairs_per_exam=False
     )
 
     val_dataloader = DataLoader(
-        val_dataset, batch_size=batch_size, shuffle=False,
+        val_dataset, 
+        batch_size=batch_size, 
+        shuffle=False,
         num_workers=min(max_workers, batch_size)
     )
 
@@ -143,12 +149,14 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
             output, other = model(l_cc_img, r_cc_img, l_mlo_img, r_mlo_img)
 
             # Accumulate model outputs
-            eids_for_epoch.extend(eid.numpy().tolist())
-            predictions.extend(output.detach().cpu().numpy().tolist())
+            # eids_for_epoch.extend(eid.numpy().tolist())
+            eids_for_epoch = eids_for_epoch + list(eid.numpy())
+            predictions = predictions + list(output.detach().cpu().numpy())
+            # predictions.extend(output.detach().cpu().numpy().tolist())
 
             # Heatmaps (c = 0 CC, c = 1 MLO)
             for c in range(2):
-                for i in range(l_cc_img.size(0)):
+                for i in range(batch_size):
                     heatmap = other[c]['heatmap'][i]
                     cy, cx = get_centroid_activation(heatmap)
 
