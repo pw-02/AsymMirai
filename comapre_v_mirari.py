@@ -260,11 +260,17 @@ def get_arrs_for_auc(probs, censor_times, golds, followup):
         valid_pos = gold and censor_time <= followup
         valid_neg = censor_time >= followup
         included, label = (valid_pos or valid_neg), valid_pos
+        # if label == True:
+        #     pass
         return included, label
 
     probs_for_eval, golds_for_eval = [], []
     for prob_arr, censor_time, gold in zip(probs, censor_times, golds):
         include, label = include_exam_and_determine_label(censor_time, gold)
+        # if gold == True:
+        #     pass
+        # if label == True:
+        #     pass
         if include:
             probs_for_eval.append(prob_arr)
             golds_for_eval.append(label)
@@ -282,11 +288,12 @@ def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
     merged_df_filtered['any_cancer'] = res
     merged_df_filtered_simplified = merged_df_filtered.drop_duplicates(['exam_id'])
 
-    # merged_df_filtered_copy = merged_df_filtered.copy()
-    # merged_df_filtered_copy.to_csv('tmp_merged_df_filtered_copy.csv', index=False)
+    merged_df_filtered_copy = merged_df_filtered.copy()
+    merged_df_filtered_copy.to_csv('tmp_merged_df_filtered_copy.csv', index=False)
 
-    # merged_df_filtered_copy = pd.read_csv('tmp_merged_df_filtered_copy.csv')
-    # merged_df_filtered_copy['prediction_pos']
+    merged_df_filtered_copy = pd.read_csv('tmp_merged_df_filtered_copy.csv')
+    
+    print(merged_df_filtered_copy['prediction_pos'])
 
 
     merged_df_filtered_simplified['y_argmin_cc'] = merged_df_filtered_simplified.apply(correct_y_argmin_cc, axis=1)
@@ -320,44 +327,44 @@ def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
                 probs_asymmirai[i] = float(v)
     
         # Build dataframe with ONLY AsymMirai
-        # df = pd.DataFrame({'AsymMirai': probs_asymmirai})
+        df = pd.DataFrame({'AsymMirai': probs_asymmirai})
 
-        # # ROC object
-        # roc = pyroc.ROC(labels, df)
+        # ROC object
+        roc = pyroc.ROC(labels, df)
 
-        # # Compute sklearn ROC curve for plotting
-        # fpr, tpr, _ = sklearn.metrics.roc_curve(labels, probs_asymmirai)
+        # Compute sklearn ROC curve for plotting
+        fpr, tpr, _ = sklearn.metrics.roc_curve(labels, probs_asymmirai)
 
-        # # Plot
-        # plt.plot(fpr, tpr)
+        # Plot
+        plt.plot(fpr, tpr)
 
-        # # Extract AUC + CI
-        # auc = roc.auc[0]
+        # Extract AUC + CI
+        auc = roc.auc[0]
         # ci_low, ci_high = roc.ci(0.05)[0]
 
         # legend.append(f"Year {year+1} AUC: {auc:.2f} ({ci_low:.2f}, {ci_high:.2f})")
 
-        # print(f"AsymMirai year {year+1} 95% CI:", roc.ci(0.05)[0])
+        print(f"AsymMirai year {year+1} 95% CI:", roc.ci(0.05)[0])
 
        
-        df = pd.DataFrame({
-            'AsymMirai': probs_asymmirai,
-            'Mirai': probs_asymmirai
-        })
-        roc = pyroc.ROC(labels,
-                        df)
+        # df = pd.DataFrame({
+        #     'AsymMirai': probs_asymmirai,
+        #     'Mirai': probs_asymmirai
+        # })
+        # roc = pyroc.ROC(labels,
+        #                 df)
         
-        fpr, tpr, thresh = sklearn.metrics.roc_curve(labels, probs_asymmirai)
-        matplotlib.rc('xtick', labelsize=19) 
-        matplotlib.rc('ytick', labelsize=19) 
-        plt.rcParams.update({'axes.labelsize': 40})
+        # fpr, tpr, thresh = sklearn.metrics.roc_curve(labels, probs_asymmirai)
+        # matplotlib.rc('xtick', labelsize=19) 
+        # matplotlib.rc('ytick', labelsize=19) 
+        # plt.rcParams.update({'axes.labelsize': 40})
         
-        plt.plot(fpr, tpr)
-        auc = roc.auc[0, 1]
-        legend.append("Year {:.0f} AUC: {:.2f} ({:.2f}, {:.2f})".format(
-            year+1, auc, roc.ci(0.05)[:, 1][0], roc.ci(0.05)[:, 1][1])
-        )
-        print(f'AsymMirai year {year + 1} 95% CI: \t', roc.ci(0.05)[:, 0])
+        # plt.plot(fpr, tpr)
+        # auc = roc.auc[0, 1]
+        # legend.append("Year {:.0f} AUC: {:.2f} ({:.2f}, {:.2f})".format(
+        #     year+1, auc, roc.ci(0.05)[:, 1][0], roc.ci(0.05)[:, 1][1])
+        # )
+        # print(f'AsymMirai year {year + 1} 95% CI: \t', roc.ci(0.05)[:, 0])
         #print(f'Mirai year {year + 1} 95% CI: \t\t', roc.ci(0.05)[:, 1])
     plt.legend(legend, prop={'size': 20})
     plt.xlabel("False Positive Rate")

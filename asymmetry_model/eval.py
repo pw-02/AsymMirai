@@ -111,7 +111,7 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
     model.learned_asym_std = model.initial_asym_std
 
     # Load dataset
-    val_df = pd.read_csv('data/embed/asymirai_input/postive_neg_example.csv')
+    val_df = pd.read_csv('data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv')
     val_dataset = MiraiMetadatasetS3(
         val_df, resizer=resize_and_normalize,
         mode="val", 
