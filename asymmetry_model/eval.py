@@ -137,7 +137,7 @@ def main(align_images=False,
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=min(max_workers, batch_size),
+        num_workers=max(max_workers, batch_size),
         pin_memory=torch.cuda.is_available(),
     )
 
@@ -235,7 +235,7 @@ if __name__ == "__main__":
         align_images=False,
         use_crop=False,
         batch_size=2,
-        max_workers=5,
+        max_workers=8,
         print_every=1,
         save_every=10,
     )
