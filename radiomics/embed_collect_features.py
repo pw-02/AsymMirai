@@ -290,6 +290,7 @@ def process_one(rel_path):
         # return out
 
     except Exception as e:
+        print(f"Error processing {rel_path}: {e}")
         return {"path": rel_path, "error": f"{type(e).__name__}: {e}"}
 
 
