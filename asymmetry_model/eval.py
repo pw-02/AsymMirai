@@ -10,8 +10,10 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from asymmetry_model.mirai_metadatasets3 import MiraiMetadatasetS3
-from embed_explore import resize_and_normalize, crop
+# from asymmetry_model.mirai_metadatasets3 import MiraiMetadatasetS3
+from asymmetry_model.mirai_metadataset_nw import MiraiMetadataset
+
+from embed_explore import crop
 
 def get_centroid_activation(heatmap: torch.Tensor, threshold: float = 0.02):
     """
@@ -117,13 +119,15 @@ def main(align_images=False,
       # Dataset
     # --------------------
     val_df = pd.read_csv(
-        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics.csv"
+        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv"
     )
 
-    val_dataset = MiraiMetadatasetS3(
+    val_dataset = MiraiMetadataset(
         val_df,
-        resizer=lambda x: resize_and_normalize(x, use_crop),
+        root_dir="/home/ubuntu/embed",
+        resizer=resize_and_normalize,
         mode="val",
+        oversample_cancer_rate=None,
         align_images=align_images,
         s3_bucket="embdedpng",
         multiple_pairs_per_exam=False,

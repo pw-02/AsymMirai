@@ -35,7 +35,8 @@ class MiraiMetadatasetS3(Dataset):
         self.mode = mode
         # Whether we want to average over multiple image pairings for each view
         self.multiple_pairs_per_exam = multiple_pairs_per_exam 
-        # print("Using oversample_cancer_rate of", oversample_cancer_rate)
+        print("Using oversample_cancer_rate of", oversample_cancer_rate)
+       
         # This is necessary to make batching play nice. If we allow different exams to have different
         # numbers of image, we will get jagged input tensors. This is a workaround where we set a max
         # number of images, and pad exams with less than the max number of images with null images.
