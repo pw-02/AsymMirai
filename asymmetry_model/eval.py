@@ -111,7 +111,7 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
     model.learned_asym_std = model.initial_asym_std
 
     # Load dataset
-    val_df = pd.read_csv('data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv')
+    val_df = pd.read_csv('data/embed/asymirai_input/postive_neg_example.csv')
     val_dataset = MiraiMetadatasetS3(
         val_df, resizer=resize_and_normalize,
         mode="val", 
@@ -124,12 +124,17 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
         val_dataset, 
         batch_size=batch_size, 
         shuffle=False,
-        num_workers=min(max_workers, batch_size)
+        num_workers=min(max_workers, batch_size),
+        pin_memory=True if torch.cuda.is_available() else False
     )
 
     # Storage
     eids_for_epoch = []
     predictions = []
+
+    predictions_for_pos = []
+    predictions_for_neg = []
+
     centroids_h_cc_for_epoch = []
     centroids_w_cc_for_epoch = []
     centroids_h_mlo_for_epoch = []
@@ -151,9 +156,11 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
             # Accumulate model outputs
             # eids_for_epoch.extend(eid.numpy().tolist())
             eids_for_epoch = eids_for_epoch + list(eid.numpy())
-            predictions = predictions + list(output.detach().cpu().numpy())
+            # predictions = predictions + list(output.detach().cpu().numpy())
             # predictions.extend(output.detach().cpu().numpy().tolist())
-
+            predictions_for_neg = predictions_for_neg + list(output[:, 0].cpu().detach().numpy())
+            predictions_for_pos = predictions_for_pos + list(output[:, 1].cpu().detach().numpy())
+           
             # Heatmaps (c = 0 CC, c = 1 MLO)
             for c in range(2):
                 for i in range(batch_size):
@@ -175,8 +182,8 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
             if (index + 1) % save_every == 0:
                 df = pd.DataFrame({
                     'exam_id': eids_for_epoch,
-                    'prediction_neg': list(1 - np.array(predictions)),
-                    'prediction_pos': predictions,
+                    'prediction_neg': predictions_for_neg,
+                    'prediction_pos': predictions_for_pos,
                     'y_argmin_cc': centroids_h_cc_for_epoch,
                     'x_argmin_cc': centroids_w_cc_for_epoch,
                     'y_argmin_mlo': centroids_h_mlo_for_epoch,
