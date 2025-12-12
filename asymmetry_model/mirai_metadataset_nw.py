@@ -161,7 +161,7 @@ class MiraiMetadataset(Dataset):
         if path is None:
             img = np.zeros((2,2))
             if self.resizer is not None:
-                img = self.resizer(img, augment=self.mode=="training")
+                img = self.resizer(img)
             return (img, None)
         try:
         
@@ -182,7 +182,7 @@ class MiraiMetadataset(Dataset):
             print(f"Error loading image at path {path}: {e}")
             img = np.zeros((2,2))
             if self.resizer is not None:
-                img = self.resizer(img, augment=self.mode=="training")
+                img = self.resizer(img)
             return (img, path)
     
     async def load_imgs_async(self, paths):
