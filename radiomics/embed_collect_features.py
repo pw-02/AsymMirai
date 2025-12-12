@@ -26,7 +26,7 @@ PROCESSED_FILE = "radiomics/files_processed.txt"
 OUTPUT_CSV = "radiomics/radiomics_features.csv"
 
 DEBUG_PLOT = False          # set True for single-image debugging
-N_WORKERS = min(1, cpu_count() - 1)
+N_WORKERS = max(1, cpu_count() - 1)
 FLUSH_EVERY = 200           # write partial CSV every N successful cases
 
 # Radiomics speed control:
