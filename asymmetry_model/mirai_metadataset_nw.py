@@ -163,20 +163,27 @@ class MiraiMetadataset(Dataset):
             if self.resizer is not None:
                 img = self.resizer(img, augment=self.mode=="training")
             return (img, None)
+        try:
         
-        path = self.resolve_path(path)
-        async with aiofiles.open(path, mode='rb') as file:
-            file_contents = await file.read()
-        img_array = np.frombuffer(file_contents, dtype=np.uint8)
-        img = cv2.imdecode(img_array, cv2.IMREAD_UNCHANGED)
-        # img = torch.tensor(img).expand(3, *img.shape)
+            path = self.resolve_path(path)
+            async with aiofiles.open(path, mode='rb') as file:
+                file_contents = await file.read()
+            img_array = np.frombuffer(file_contents, dtype=np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_UNCHANGED)
+            # img = torch.tensor(img).expand(3, *img.shape)
 
-        if self.resizer is not None:
-            # img = self.resizer(img, augment=self.mode=="training")
-            img = self.resizer(img)
+            if self.resizer is not None:
+                # img = self.resizer(img, augment=self.mode=="training")
+                img = self.resizer(img)
 
-        
-        return (img, path)
+            
+            return (img, path)
+        except Exception as e:
+            print(f"Error loading image at path {path}: {e}")
+            img = np.zeros((2,2))
+            if self.resizer is not None:
+                img = self.resizer(img, augment=self.mode=="training")
+            return (img, path)
     
     async def load_imgs_async(self, paths):
         """
