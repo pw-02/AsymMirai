@@ -305,6 +305,20 @@ def process_list_of_files(dicom_list, output_csv="radiomics_features.csv"):
 # ======================================================
 if __name__ == "__main__":
         input_file = "radiomics/files_to_process.txt"
+        already_processed_txt = "radiomics/files_processed.txt"
+
+        #fild files not yet processed
+        if os.path.exists(already_processed_txt):
+            with open(already_processed_txt, 'r') as f:
+                processed_files = set(line.strip() for line in f.readlines())
+        else:
+            processed_files = set()
+        
+        dicom_files = [line.strip() for line in open(input_file, 'r') if line.strip() not in processed_files]
+
+        #print number of files to process
+        print(f"Number of files to process: {len(dicom_files)}")
+
         with open(input_file, 'r') as f:
             dicom_files = [line.strip() for line in f.readlines()]
         
