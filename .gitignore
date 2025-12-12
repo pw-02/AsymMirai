@@ -1,7 +1,7 @@
 # Byte-compiled / optimized / DLL files
 
 asymmirai_pipeline/
-radiomics/
+# radiomics/
 data\embed\tables\
 data/embed/tables/
 results/
@@ -140,3 +140,5 @@ data/embed/example/AWS_Open_Data_Clinical_Legend_top100.csv
 data/embed/example/EMBED_OpenData_clinical_top100.csv
 data/embed/example/EMBED_OpenData_metadata_reduced_top100.csv
 data/embed/example/EMBED_OpenData_metadata_top100.csv
+radiomics/1.2.826.0.1.3680043.8.498.29370625550190693487008296963009897535.dcm
+radiomics/1.2.826.0.1.3680043.8.498.53694877347899790994326073022283988928.dcm
