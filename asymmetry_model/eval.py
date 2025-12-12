@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
-
+import time
 # from asymmetry_model.mirai_metadatasets3 import MiraiMetadatasetS3
 from asymmetry_model.mirai_metadataset_nw import MiraiMetadataset
 
@@ -153,6 +153,7 @@ def main(align_images=False,
     # Inference
     # --------------------
     with torch.no_grad():
+        start = time.perf_counter() 
         for idx, sample in enumerate(val_loader):
             (
                 eid,
@@ -166,6 +167,8 @@ def main(align_images=False,
                 r_mlo_img,
                 r_mlo_path,
             ) = sample
+
+            print(f"data loading time: {time.perf_counter() - start:.4f} seconds")
 
             l_cc_img = l_cc_img.to(device)
             r_cc_img = r_cc_img.to(device)
@@ -207,6 +210,7 @@ def main(align_images=False,
                     }
                 ).to_csv("tmp_val_run.csv", index=False)
                 print(f"Saved partial CSV at {idx + 1}")
+            start = time.perf_counter()
 
     # --------------------
     # Final save
@@ -230,7 +234,7 @@ if __name__ == "__main__":
     main(
         align_images=False,
         use_crop=False,
-        batch_size=1,
+        batch_size=2,
         max_workers=5,
         print_every=1,
         save_every=10,
