@@ -13,198 +13,213 @@ from torch.utils.data import DataLoader
 from asymmetry_model.mirai_metadatasets3 import MiraiMetadatasetS3
 from embed_explore import resize_and_normalize, crop
 
+def get_centroid_activation(heatmap: torch.Tensor, threshold: float = 0.02):
+    """
+    Finds the centroid of the contiguous region near the max activation.
+    """
+    hmap = heatmap.detach().cpu()
+    H, W = hmap.shape
+    max_val = torch.max(hmap)
+    mask = (max_val - hmap) <= threshold
 
+    coords = mask.nonzero(as_tuple=False).tolist()
+    visited = set()
+    components = []
+    for r, c in coords:
+        if (r, c) in visited:
+            continue
 
-def get_centroid_activation(array, threshold=0.02):
-    print(array.shape)
-    h, w = array.shape
-    am = torch.argmax(array)
-    am_h, am_w = am // w, am % w
+        stack = [(r, c)]
+        component = []
 
-    # Candidate pixels close to the max
-    candidate_locations = list(((array[am_h, am_w] - array) <= threshold).nonzero())
+        while stack:
+            rr, cc = stack.pop()
+            if (rr, cc) in visited:
+                continue
 
-    contiguous_w_max = [torch.tensor([am_h, am_w])]
-    added_new = True
+            visited.add((rr, cc))
+            component.append((rr, cc))
 
-    while added_new:
-        added_new = False
-        to_move = []
-        for cl_ind, cl in enumerate(candidate_locations):
-            for contig in contiguous_w_max:
-                if abs(cl[0] - contig[0]) <= 1 and abs(cl[1] - contig[1]) <= 1:
-                    if not (cl[0] == contig[0] and cl[1] == contig[1]):
-                        to_move.append(cl_ind)
-                        added_new = True
-                        break
+            for dr in (-1, 0, 1):
+                for dc in (-1, 0, 1):
+                    nr, nc = rr + dr, cc + dc
+                    if (nr, nc) in coords and (nr, nc) not in visited:
+                        stack.append((nr, nc))
 
-        for index in sorted(to_move, reverse=True):
-            contiguous_w_max.append(candidate_locations[index])
-            del candidate_locations[index]
+        components.append(component)
+    
+    # take largest connected component
+    largest = max(components, key=len)
+    ys, xs = zip(*largest)
 
-    # Remove duplicated max
-    if len(contiguous_w_max) > 1:
-        del contiguous_w_max[0]
-
-    # Means
-    h_mean, w_mean = 0.0, 0.0
-    for cm in contiguous_w_max:
-        h_mean += cm[0].item()
-        w_mean += cm[1].item()
-    h_mean /= len(contiguous_w_max)
-    w_mean /= len(contiguous_w_max)
-
-    print(h_mean, w_mean, contiguous_w_max)
-    return (h_mean, w_mean)
+    return float(np.mean(ys)), float(np.mean(xs))
 
 def resize_and_normalize(img, use_crop=False):
+    """
+    Normalizes and resizes a single image.
+    Output: torch.FloatTensor [3, 1664, 2048]
+    """
     img_mean = 7699.5
     img_std = 11765.06
     target_size = (1664, 2048)
-    dummy_batch_dim = False
 
-    if np.sum(img) == 0:
-        img = torch.tensor(img).expand(1, 3, *img.shape)\
-                        .type(torch.FloatTensor)
-        return F.upsample(img, size=(target_size[0], target_size[1]), mode='bilinear')[0]
+    img = torch.tensor(img, dtype=torch.float32)
 
-    # Adding a dummy batch dimension if necessary
-    if len(img.shape) == 3:
-        img = torch.unsqueeze(img, 0)
-        dummy_batch_dim = True
+    if torch.sum(img) == 0:
+        img = img.unsqueeze(0).repeat(3, 1, 1)
+        img = img.unsqueeze(0)
+        return F.interpolate(img, size=target_size, mode="bilinear", align_corners=False)[0]
 
-    with torch.no_grad():
-        if use_crop:
-            img = crop(torch.tensor((img - img_mean)/img_std))
-        else:
-            img = torch.tensor((img - img_mean)/img_std)
-        img = img.expand(1, 3, *img.shape)\
-                        .type(torch.FloatTensor)
-        img_resized = F.upsample(img, size=(target_size[0], target_size[1]), mode='bilinear')
+    img = (img - img_mean) / img_std
 
-    if dummy_batch_dim:
-        return img_resized[0]
-    else:
-        return img_resized[0]
+    if use_crop:
+        img = crop(img)
+
+    if img.ndim == 2:
+        img = img.unsqueeze(0)
+
+    img = img.repeat(3, 1, 1)
+    img = img.unsqueeze(0)
+
+    img = F.interpolate(img, size=target_size, mode="bilinear", align_corners=False)
+    return img[0]
+
+
+
+
+
+def main(align_images=False, 
+         use_crop=False, 
+         batch_size=1, 
+         max_workers=0,
+         print_every=50, 
+         save_every=200):
     
-
-
-def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
-         print_every=50, save_every=200):
-
-    device = 'cpu' if not torch.cuda.is_available() else 0
-    torch.cuda.set_device(device)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
 
     # Load model
     model = torch.load(
-        'snapshots/trained_asymmirai.pt',
+        "snapshots/trained_asymmirai.pt",
+        map_location=device,
         weights_only=False,
-        map_location=torch.device(f'cuda:{device}')
     )
-    model = model.eval()
+    
+    model = model.eval().to(device)
     model.latent_h = 5
     model.latent_w = 5
     model.topk_for_heatmap = None
-    model.topk_weights = torch.tensor([1]).cuda()
+    model.topk_weights = torch.tensor([1.0], device=device)
     model.use_bn = False
     model.learned_asym_mean = model.initial_asym_mean
     model.learned_asym_std = model.initial_asym_std
 
-    # Load dataset
-    val_df = pd.read_csv('data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv')
-    val_dataset = MiraiMetadatasetS3(
-        val_df, resizer=resize_and_normalize,
-        mode="val", 
-        align_images=align_images,
-        s3_bucket='embdedpng',
-        multiple_pairs_per_exam=False
+      # Dataset
+    # --------------------
+    val_df = pd.read_csv(
+        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics.csv"
     )
 
-    val_dataloader = DataLoader(
-        val_dataset, 
-        batch_size=batch_size, 
+    val_dataset = MiraiMetadatasetS3(
+        val_df,
+        resizer=lambda x: resize_and_normalize(x, use_crop),
+        mode="val",
+        align_images=align_images,
+        s3_bucket="embdedpng",
+        multiple_pairs_per_exam=False,
+    )
+
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
         shuffle=False,
         num_workers=min(max_workers, batch_size),
-        pin_memory=True if torch.cuda.is_available() else False
+        pin_memory=torch.cuda.is_available(),
     )
 
-    # Storage
-    eids_for_epoch = []
-    predictions = []
+    # Storag
+    eids = []
+    pred_neg = []
+    pred_pos = []
 
-    predictions_for_pos = []
-    predictions_for_neg = []
+    y_cc, x_cc = [], []
+    y_mlo, x_mlo = [], []
 
-    centroids_h_cc_for_epoch = []
-    centroids_w_cc_for_epoch = []
-    centroids_h_mlo_for_epoch = []
-    centroids_w_mlo_for_epoch = []
-
+     # --------------------
+    # Inference
+    # --------------------
     with torch.no_grad():
-        for index, sample in enumerate(val_dataloader):
-            eid, label, l_cc_img, l_cc_path, r_cc_img, r_cc_path, l_mlo_img, l_mlo_path, r_mlo_img, r_mlo_path = sample
+        for idx, sample in enumerate(val_loader):
+            (
+                eid,
+                label,
+                l_cc_img,
+                l_cc_path,
+                r_cc_img,
+                r_cc_path,
+                l_mlo_img,
+                l_mlo_path,
+                r_mlo_img,
+                r_mlo_path,
+            ) = sample
 
-            # Move to GPU
-            l_cc_img = l_cc_img.cuda()
-            r_cc_img = r_cc_img.cuda()
-            l_mlo_img = l_mlo_img.cuda()
-            r_mlo_img = r_mlo_img.cuda()
-            label = label.cuda()
+            l_cc_img = l_cc_img.to(device)
+            r_cc_img = r_cc_img.to(device)
+            l_mlo_img = l_mlo_img.to(device)
+            r_mlo_img = r_mlo_img.to(device)
 
             output, other = model(l_cc_img, r_cc_img, l_mlo_img, r_mlo_img)
 
-            # Accumulate model outputs
-            # eids_for_epoch.extend(eid.numpy().tolist())
-            eids_for_epoch = eids_for_epoch + list(eid.numpy())
-            # predictions = predictions + list(output.detach().cpu().numpy())
-            # predictions.extend(output.detach().cpu().numpy().tolist())
-            predictions_for_neg = predictions_for_neg + list(output[:, 0].cpu().detach().numpy())
-            predictions_for_pos = predictions_for_pos + list(output[:, 1].cpu().detach().numpy())
-           
-            # Heatmaps (c = 0 CC, c = 1 MLO)
-            for c in range(2):
-                for i in range(batch_size):
-                    heatmap = other[c]['heatmap'][i]
-                    cy, cx = get_centroid_activation(heatmap)
+            batch_sz = output.size(0)
 
+            eids.extend(eid.cpu().numpy().tolist())
+            pred_neg.extend(output[:, 0].cpu().numpy().tolist())
+            pred_pos.extend(output[:, 1].cpu().numpy().tolist())
+
+            for c in range(2):  # 0 = CC, 1 = MLO
+                heatmaps = other[c]["heatmap"]
+                for i in range(batch_sz):
+                    cy, cx = get_centroid_activation(heatmaps[i])
                     if c == 0:
-                        centroids_h_cc_for_epoch.append(cy)
-                        centroids_w_cc_for_epoch.append(cx)
+                        y_cc.append(cy)
+                        x_cc.append(cx)
                     else:
-                        centroids_h_mlo_for_epoch.append(cy)
-                        centroids_w_mlo_for_epoch.append(cx)
+                        y_mlo.append(cy)
+                        x_mlo.append(cx)
 
-            # Progress print
-            if (index + 1) % print_every == 0:
-                print(f"[{index + 1}/{len(val_dataloader)}] processed")
+            if (idx + 1) % print_every == 0:
+                print(f"[{idx + 1}/{len(val_loader)}] processed")
 
-            # Periodic CSV save
-            if (index + 1) % save_every == 0:
-                df = pd.DataFrame({
-                    'exam_id': eids_for_epoch,
-                    'prediction_neg': predictions_for_neg,
-                    'prediction_pos': predictions_for_pos,
-                    'y_argmin_cc': centroids_h_cc_for_epoch,
-                    'x_argmin_cc': centroids_w_cc_for_epoch,
-                    'y_argmin_mlo': centroids_h_mlo_for_epoch,
-                    'x_argmin_mlo': centroids_w_mlo_for_epoch
-                })
-                df.to_csv('tmp_val_run.csv', index=False)
-                print(f"Saved partial CSV at sample {index + 1}")
+            if (idx + 1) % save_every == 0:
+                pd.DataFrame(
+                    {
+                        "exam_id": eids,
+                        "prediction_neg": pred_neg,
+                        "prediction_pos": pred_pos,
+                        "y_argmin_cc": y_cc,
+                        "x_argmin_cc": x_cc,
+                        "y_argmin_mlo": y_mlo,
+                        "x_argmin_mlo": x_mlo,
+                    }
+                ).to_csv("tmp_val_run.csv", index=False)
+                print(f"Saved partial CSV at {idx + 1}")
 
+    # --------------------
     # Final save
-    df = pd.DataFrame({
-        'exam_id': eids_for_epoch,
-        'prediction_neg': list(1 - np.array(predictions)),
-        'prediction_pos': predictions,
-        'y_argmin_cc': centroids_h_cc_for_epoch,
-        'x_argmin_cc': centroids_w_cc_for_epoch,
-        'y_argmin_mlo': centroids_h_mlo_for_epoch,
-        'x_argmin_mlo': centroids_w_mlo_for_epoch
-    })
-    df.to_csv('tmp_val_run.csv', index=False)
+    # --------------------
+    df = pd.DataFrame(
+        {
+            "exam_id": eids,
+            "prediction_neg": pred_neg,
+            "prediction_pos": pred_pos,
+            "y_argmin_cc": y_cc,
+            "x_argmin_cc": x_cc,
+            "y_argmin_mlo": y_mlo,
+            "x_argmin_mlo": x_mlo,
+        }
+    )
+    df.to_csv("tmp_val_run.csv", index=False)
     print("Final CSV saved.")
-
 
 
 if __name__ == "__main__":
@@ -213,6 +228,6 @@ if __name__ == "__main__":
         use_crop=False,
         batch_size=1,
         max_workers=0,
-        print_every=1,   # print every 50 iterations
-        save_every=10    # write CSV every 200 iterations
+        print_every=1,
+        save_every=10,
     )

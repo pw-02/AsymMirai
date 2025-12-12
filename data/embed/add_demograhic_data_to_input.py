@@ -84,7 +84,6 @@ def main():
     #for each path in the dicom_paths column of input_data, check if the file exists and update a status column 
     input_data["file_exists"] = input_data["dicom_path"].apply(lambda x: not check_file_not_exists_in_s3(all_s3_keys, x))
 
-
     input_data.to_csv("data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics.csv", index=False)
     
 
