@@ -1094,7 +1094,16 @@ def df_magXmet_for_patients(empi_anons, df_mag=None, df_met=None, df_magXmet=Non
         raise ValueError('must supply either df_mag and df_met or df_magXmet')
     
 
-def patient_report(empi_anon, pdf_path=None, with_heatmap=False, df_mag=None, df_met=None, df_magXmet=None, asym_model=None, include_all_images=False, asymetry_distribution=None):
+def patient_report(empi_anon, 
+                   pdf_path=None,
+                     with_heatmap=False, 
+                     df_mag=None, 
+                     df_met=None, 
+                     df_magXmet=None, 
+                     asym_model=None, 
+                     include_all_images=False, 
+                     asymetry_distribution=None):
+    
     df_magXmet_patient = df_magXmet_for_patients([empi_anon], df_mag, df_met, df_magXmet)
 
     if asym_model is not None:
