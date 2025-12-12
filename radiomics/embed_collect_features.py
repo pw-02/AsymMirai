@@ -280,7 +280,7 @@ def process_list_of_files(dicom_list, output_csv="radiomics_features.csv"):
     counter = 0
     for dicom_rel_path in dicom_list:
 
-        dicom_path = '/media/pwatters/WD_BLACK/MammoDataset/EMBED/mammograms/' + dicom_rel_path
+        dicom_path = '/media/pwatters/WD_BLACK/MammoDataset/EMBED/' + dicom_rel_path
 
         features = process_mammogram(dicom_path, base_name=os.path.splitext(os.path.basename(dicom_path))[0])
         all_data.append(features)
