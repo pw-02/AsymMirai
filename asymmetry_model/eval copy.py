@@ -227,7 +227,7 @@ def main(align_images=False, use_crop=False, batch_size=1, max_workers=0,
                     'prediction_neg': predictions_for_neg,
                     'prediction_pos': predictions_for_pos,
                     'y_argmin_cc': centroids_h_cc_for_epoch,
-                    'x_argmin_cc': centroids_w_cc_for_epoch,
+                    '': centroids_w_cc_for_epoch,
                     'y_argmin_mlo': centroids_h_mlo_for_epoch,
                     'x_argmin_mlo': centroids_w_mlo_for_epoch
                 })

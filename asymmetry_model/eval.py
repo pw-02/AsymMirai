@@ -129,7 +129,7 @@ def main(align_images=False,
         mode="val",
         oversample_cancer_rate=None,
         align_images=align_images,
-        s3_bucket="embdedpng",
+        # s3_bucket="embdedpng",
         multiple_pairs_per_exam=False,
     )
 
