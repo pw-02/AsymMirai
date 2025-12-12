@@ -127,6 +127,12 @@ class MiraiMetadataset(Dataset):
     def resolve_path(self, path):
         if path is None:
             return None
+        
+        #change extension to .png
+        base, ext = os.path.splitext(path)
+        path = base + ".png"
+
+
         if os.path.isabs(path):
             return path
         return os.path.join(self.root_dir, path)
