@@ -342,6 +342,10 @@ def main():
     # multiprocessing
     with Pool(processes=N_WORKERS) as pool:
         for res in tqdm(pool.imap_unordered(process_one, todo), total=len(todo)):
+            if  is None:
+                print("Warning: got None result from worker.")
+                continue
+
             results_buffer.append(res)
             processed_buffer.append(res["path"])
 
