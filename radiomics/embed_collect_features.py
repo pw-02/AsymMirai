@@ -19,12 +19,14 @@ from skimage.transform import hough_line, hough_line_peaks
 # CONFIG
 # -----------------------------
 BASE_DIR = "/media/pwatters/WD_BLACK/MammoDataset/EMBED/"
+
+# BASE_DIR = ""
 INPUT_FILE = "radiomics/files_to_process_cc.txt"
 PROCESSED_FILE = "radiomics/files_processed.txt"
 OUTPUT_CSV = "radiomics/radiomics_features.csv"
 
 DEBUG_PLOT = False          # set True for single-image debugging
-N_WORKERS = max(1, cpu_count() - 1)
+N_WORKERS = min(1, cpu_count() - 1)
 FLUSH_EVERY = 200           # write partial CSV every N successful cases
 
 # Radiomics speed control:
@@ -287,7 +289,7 @@ def process_one(rel_path):
 
         #cleanup NaNs/Infs
 
-        # return out
+        return out
 
     except Exception as e:
         print(f"Error processing {rel_path}: {e}")
@@ -344,7 +346,6 @@ def main():
         for res in tqdm(pool.imap_unordered(process_one, todo), total=len(todo)):
             if res is None:
                 print("Warning: got None result from worker.")
-                continue
             
             results_buffer.append(res)
             processed_buffer.append(res["path"])
