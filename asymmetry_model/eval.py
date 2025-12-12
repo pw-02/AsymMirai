@@ -230,8 +230,8 @@ if __name__ == "__main__":
     main(
         align_images=False,
         use_crop=False,
-        batch_size=1,
-        max_workers=0,
+        batch_size=2,
+        max_workers=2,
         print_every=1,
         save_every=10,
     )
