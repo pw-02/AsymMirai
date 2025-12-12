@@ -235,7 +235,7 @@ if __name__ == "__main__":
         align_images=False,
         use_crop=False,
         batch_size=2,
-        max_workers=8,
+        max_workers=10,
         print_every=1,
         save_every=10,
     )
