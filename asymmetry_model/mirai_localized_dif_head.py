@@ -6,7 +6,7 @@ sys.path.append('../')
 def extract_mirai_backbone(path):
 
     # first pull mirai onto the CPU to avoid putting the whole transformer on the gpu
-    mirai = torch.load(path, map_location='cpu')
+    mirai = torch.load(path, map_location='cpu', weights_only=False)
     embedding = []
     for l in mirai.children():
         for m in l.children():
@@ -73,7 +73,7 @@ class LocalizedDifModel(torch.nn.Module):
         
         # Getting the embedding layers from Mirai
         if embedding_model is None:
-            mirai = extract_mirai_backbone('../snapshots/mgh_mammo_MIRAI_Base_May20_2019.p')
+            mirai = extract_mirai_backbone('snapshots\\mgh_mammo_MIRAI_Base_May20_2019.p')
             mirai.requires_grad = train_backbone
             if use_addon_layers:
                 print("USING ADDON LAYERS")

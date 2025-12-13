@@ -33,6 +33,7 @@ class MiraiMetadatasetS3(Dataset):
         self.load_images_async = load_images_async
         self.align_images = align_images
         self.mode = mode
+        self.num_cancer_samples = 0
         # Whether we want to average over multiple image pairings for each view
         self.multiple_pairs_per_exam = multiple_pairs_per_exam 
         print("Using oversample_cancer_rate of", oversample_cancer_rate)
@@ -91,6 +92,9 @@ class MiraiMetadatasetS3(Dataset):
             if allow_incomplete or complete_exam:
                 # exam is cached with just the paths - but the images are loaded from __getitem__
                 label = 1 if (cur_exam['years_to_cancer'].values < 15).any() else 0
+                if label == 1:
+                    self.num_cancer_samples += 1
+                    print("Total cancer samples so far:", self.num_cancer_samples)
                 label = torch.tensor(label)
                 
                 def add_record():
@@ -178,8 +182,8 @@ class MiraiMetadatasetS3(Dataset):
             if self.resizer is not None:
                 img = self.resizer(img, use_crop=False)
             return img
-        
-        path = path.replace("images/", "png_images/../png_tmp/")
+        path = "png_images/../png_tmp/" + path
+        # path = path.replace("images/", "png_images/../png_tmp/")
         #make all slashes forward for s3
         path = path.replace("\\", "/")
         #change to png

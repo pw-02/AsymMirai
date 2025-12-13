@@ -10,10 +10,13 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import time
-# from asymmetry_model.mirai_metadatasets3 import MiraiMetadatasetS3
+from asymmetry_model.mirai_metadatasets3 import MiraiMetadatasetS3
 from asymmetry_model.mirai_metadataset_nw import MiraiMetadataset
-
 from embed_explore import crop
+from mirai_localized_dif_head import LocalizedDifModel
+from asymmetry_metrics import hybrid_asymmetry
+
+USE_S3 = True
 
 def get_centroid_activation(heatmap: torch.Tensor, threshold: float = 0.02):
     """
@@ -98,46 +101,78 @@ def main(align_images=False,
          save_every=200):
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cpu")
     print(f"Using device: {device}")
 
     # Load model
-    model = torch.load(
-        "snapshots/trained_asymmirai.pt",
-        map_location=device,
-        weights_only=False,
-    )
+    # model = torch.load(
+    #     "snapshots/trained_asymmirai.pt",
+    #     map_location=device,
+    #     weights_only=False,
+    # )
+    model = LocalizedDifModel(asymmetry_metric=hybrid_asymmetry,
+                    embedding_channel=512,
+                    latent_h=5,
+                    latent_w=5,
+                    embedding_model=None,
+                    initial_asym_mean=4000,
+                    initial_asym_std=200,
+                    use_stretch=True,
+                    train_backbone=False,
+                    flexible_asymmetry=True,
+                    use_stretch_matrix=False,
+                    device_ids=[0],
+                    use_addon_layers=False,
+                    topk_for_heatmap=None,
+                    use_bias=False,
+                    use_bn=False)
     
     model = model.eval().to(device)
-    model.latent_h = 5
-    model.latent_w = 5
-    model.topk_for_heatmap = None
-    model.topk_weights = torch.tensor([1.0], device=device)
-    model.use_bn = False
     model.learned_asym_mean = model.initial_asym_mean
     model.learned_asym_std = model.initial_asym_std
+    # model.latent_h = 5
+    # model.latent_w = 5
+    # model.topk_for_heatmap = None
+    # model.topk_weights = torch.tensor([1.0], device=device)
+    # model.use_bn = False
+    # model.learned_asym_mean = model.initial_asym_mean
+    # model.learned_asym_std = model.initial_asym_std
 
       # Dataset
     # --------------------
+    # val_df = pd.read_csv(
+    #     "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv"
+    # )
     val_df = pd.read_csv(
-        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv"
+        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_postive_example.csv"
     )
-
-    val_dataset = MiraiMetadataset(
-        val_df,
-        root_dir="/home/ubuntu/embed",
-        resizer=resize_and_normalize,
-        mode="val",
-        oversample_cancer_rate=None,
-        align_images=align_images,
-        # s3_bucket="embdedpng",
-        multiple_pairs_per_exam=False,
-    )
+    if USE_S3:
+        val_dataset = MiraiMetadatasetS3(
+            val_df,
+            resizer=resize_and_normalize,
+            mode="val",
+            oversample_cancer_rate=None,
+            align_images=align_images,
+            s3_bucket="embdedpng",
+            multiple_pairs_per_exam=False,
+        )
+    else:
+        val_dataset = MiraiMetadataset(
+            val_df,
+            root_dir="/home/ubuntu/embed",
+            resizer=resize_and_normalize,
+            mode="val",
+            oversample_cancer_rate=None,
+            align_images=align_images,
+            # s3_bucket="embdedpng",
+            multiple_pairs_per_exam=False,
+        )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=max(max_workers, batch_size),
+        num_workers=max_workers,
         pin_memory=torch.cuda.is_available(),
     )
 
@@ -234,8 +269,8 @@ if __name__ == "__main__":
     main(
         align_images=False,
         use_crop=False,
-        batch_size=2,
-        max_workers=10,
+        batch_size=1,
+        max_workers=0,
         print_every=1,
         save_every=10,
     )

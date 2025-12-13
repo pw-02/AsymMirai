@@ -211,7 +211,7 @@ def compute_auc_for_asymm(probs, censor_times, golds, followup, calculate_curve=
     return auc, avg_precision, golds_for_eval
 
 def get_label(row, max_followup=10, mode='censor_time'):
-    any_cancer = row["years_to_cancer"] < max_followup
+    any_cancer = row["years_to_cancer"] <= max_followup
     cancer_key = "years_to_cancer"
 
     y =  any_cancer
@@ -260,24 +260,20 @@ def get_arrs_for_auc(probs, censor_times, golds, followup):
         valid_pos = gold and censor_time <= followup
         valid_neg = censor_time >= followup
         included, label = (valid_pos or valid_neg), valid_pos
-        # if label == True:
-        #     pass
+
         return included, label
 
     probs_for_eval, golds_for_eval = [], []
     for prob_arr, censor_time, gold in zip(probs, censor_times, golds):
         include, label = include_exam_and_determine_label(censor_time, gold)
-        # if gold == True:
-        #     pass
-        # if label == True:
-        #     pass
+      
         if include:
             probs_for_eval.append(prob_arr)
             golds_for_eval.append(label)
     return probs_for_eval, golds_for_eval
 
 
-def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
+def create_asym_auc_plot(merged_df_filtered: pd.DataFrame):
 
     # merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
 
@@ -317,7 +313,8 @@ def craete_asum_auc_plot(merged_df_filtered: pd.DataFrame):
         probs_asymmirai, labels = get_arrs_for_auc(merged_df_filtered_simplified[f'prediction_pos'],
                                         merged_df_filtered_simplified['censor_time'],
                                         merged_df_filtered_simplified['any_cancer'],
-                                        year)
+                                        year + 1)
+        
         for i, v in enumerate(probs_asymmirai):
             # Convert "[x, y]" string into real list
             if isinstance(v, str):
@@ -646,12 +643,14 @@ def test(merged_df_filtered_simplified: pd.DataFrame):
 
 
 if __name__ == "__main__":
-    asym_input_file = 'data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_CLEANED_4VIEW_test.csv'
-    asym_preds_file = 'tmp_val_run.csv'
+    asym_input_file = 'data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv'
+    asym_preds_file = 'tmp_val_run_asym.csv'
     filtered = pd.read_csv(asym_input_file)
     asym_preds = pd.read_csv(asym_preds_file)
     merged_df_filtered = filtered.merge(asym_preds, on='exam_id', suffixes=['', '_asym'])
-    merged_df_filtered_simplified = craete_asum_auc_plot(merged_df_filtered)
+    #save merged df
+    merged_df_filtered.to_csv('tmp_merged_df_filtered.csv', index=False)
+    merged_df_filtered_simplified = create_asym_auc_plot(merged_df_filtered)
 
     
     # test(merged_df_filtered_simplified)

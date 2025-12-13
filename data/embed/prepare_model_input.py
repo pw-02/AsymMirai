@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from tableone import TableOne
 import embed_toolkit # version 0.2.*
 from tqdm import tqdm
-
+from constants_val import *
 # these let us set the number of rows/cols of our dataframes we want to see
 # EMBED has a lot of columns so it's a good idea to increase this from the default
 
@@ -18,8 +18,6 @@ from tqdm import tqdm
 REQUIRED_VIEWS = {"CC", "MLO"}
 REQUIRED_SIDES = {"L", "R"}
 REQUIRED_PAIRS = {("CC", "L"), ("CC", "R"), ("MLO", "L"), ("MLO", "R")}
-
-
 
 pd.set_option('display.max_rows', 50)
 pd.set_option('display.max_columns', 500)
@@ -66,16 +64,16 @@ def get_worst_br(group):
     worst_br_val = min(group.asses.map(br_to_val_dict).tolist())
     return val_to_br_dict.get(worst_br_val, '')
 
-def get_incomplete_exams(df):
-    incomplete_exams = []    
+def get_incomplete_exams(df: pd.DataFrame) -> list:
+    incomplete_exams = []
 
+    #save all unique exam ids to csv
+    df.groupby("acc_anon").nunique().value_counts()
     for exam_id, exam_df in df.groupby("acc_anon"):
-
-        # set of (view, side) pairs present in this exam
         present = set(
             zip(
-                exam_df["ViewPosition"],
-                exam_df["ImageLateralityFinal"]
+                exam_df[EMBED_VIEW_COL],
+                exam_df[EMBED_SIDE_COL]
             )
         )
 
@@ -96,37 +94,46 @@ def preprocess_metadata(meta_df: pd.DataFrame) -> pd.DataFrame:
     print("Initial meta statistics:")
     print_dataset_stats(meta_df)
 
-    # ---- Ensure datetime for exam_date logic later ----
-    # If already datetime, this is harmless.
-    meta_df["study_date_anon"] = pd.to_datetime(meta_df["study_date_anon"], errors="coerce")
-
-     # ---- 2D only ----
-    meta_df = meta_df[meta_df["FinalImageType"] == "2D"].copy()
+    # Only consider 2D images
+    meta_df = meta_df[meta_df[EMBED_IMAGE_TYPE_COL] == "2D"]
     print("After filtering to 2D images:")
     print_dataset_stats(meta_df)
-
+    
     # ---- drop incomplete exams ----
     incomplete_exams = set(get_incomplete_exams(meta_df))
     meta_df = meta_df[~meta_df["acc_anon"].isin(incomplete_exams)].copy()
     print("After filtering out incomplete exams:")
     print_dataset_stats(meta_df)
 
-    # ---- keep canonical views only ----
+    # ---- keep canonical views only ---
     meta_df = meta_df[
         meta_df["ViewPosition"].isin(REQUIRED_VIEWS)
         & meta_df["ImageLateralityFinal"].isin(REQUIRED_SIDES)
     ].copy()
+
+    print("After filtering to canonical views only:")
+    print_dataset_stats(meta_df)
 
      # ---- sanity: exactly 4 images per exam ----
     counts = meta_df.groupby("acc_anon").size()
     if not counts.eq(4).all():
         bad = counts[counts != 4]
         print("Exams with incorrect number of images:")
-        print(bad)
+        print(len(bad))
         #remove these exams from the dataframe
         meta_df = meta_df[~meta_df['acc_anon'].isin(bad.index)].copy()
+    
+    print("After ensuring exactly 4 images per exam:")
+    print_dataset_stats(meta_df)
 
-    print("✔ All remaining exams have exactly 4 images")
+    #drop all rows that are not screening exams based on StudyDescription column
+    screening_mask = meta_df[EMBED_PROCEDURE_COL].str.contains('screen', case=False, na=False)
+    meta_df = meta_df[screening_mask].copy()
+
+    print("After filtering to screening exams only:")
+    print_dataset_stats(meta_df)
+
+    #only keep screening exams
     return meta_df
 
 
@@ -138,11 +145,6 @@ def build_labels_and_followup(meta_df_reduced: pd.DataFrame, mag_contra_df: pd.D
       - years_to_cancer (float): time from this exam to first cancer date (else 100)
       - years_to_last_followup (float): time from this exam to last follow-up (last screen date or first cancer date)
     """
-
-    # Ensure datetime
-    meta_df_reduced["exam_date"] = pd.to_datetime(meta_df_reduced["exam_date"], errors="coerce")
-    mag_contra_df["study_date_anon"] = pd.to_datetime(mag_contra_df["study_date_anon"], errors="coerce")
-
     # Define “cancer” rows (keep your definition, but now vectorized)
     cancer_df = mag_contra_df[mag_contra_df["path_severity"].isin([0, 1])].copy()
 
@@ -162,6 +164,9 @@ def build_labels_and_followup(meta_df_reduced: pd.DataFrame, mag_contra_df: pd.D
         how="left",
         validate="many_to_one",
     )
+    #print where patient_id is 10119504
+    print(meta_df_reduced[meta_df_reduced["patient_id"] == 10119504][["exam_date", "first_cancer_date"]])
+
 
     # developed_cancer if first_cancer_date exists and is after this exam_date
     meta_df_reduced["developed_cancer"] = (
@@ -173,6 +178,16 @@ def build_labels_and_followup(meta_df_reduced: pd.DataFrame, mag_contra_df: pd.D
     meta_df_reduced["years_to_cancer"] = (
         (meta_df_reduced["first_cancer_date"] - meta_df_reduced["exam_date"]).dt.days / 365.25
     )
+
+    meta_df_reduced["years_to_cancer"] = (
+    np.ceil(
+        (meta_df_reduced["first_cancer_date"] - meta_df_reduced["exam_date"])
+        .dt.days / 365.25
+    )
+    .astype("Int64")
+)
+
+
 
     # default for no subsequent cancer
     meta_df_reduced.loc[~meta_df_reduced["developed_cancer"], "years_to_cancer"] = 100.0
@@ -239,7 +254,7 @@ def build_labels_and_followup(meta_df_reduced: pd.DataFrame, mag_contra_df: pd.D
 def print_dataset_stats(df: pd.DataFrame):
     print(" Number of unique patients:", df['empi_anon'].nunique())
     print(" Number of unique exams:", df['acc_anon'].nunique())
-    print(" Total number of exam images:", df.shape[0])
+    print(" Total number of images:", df.shape[0])
 
 def ensure_key_column_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     df['empi_anon'] = pd.to_numeric(df['empi_anon'])
@@ -252,71 +267,15 @@ if __name__ == "__main__":
     # Load
     # ----------------------------
     mag_df = pd.read_csv("data/embed/tables/EMBED_OpenData_clinical.csv")
-    meta_df = pd.read_csv("data/embed/tables/EMBED_OpenData_metadata.csv")
+    meta_df = pd.read_csv("data/embed/tables/EMBED_OpenData_metadata_reduced.csv")
 
     meta_df = ensure_key_column_dtypes(meta_df)
     mag_df = ensure_key_column_dtypes(mag_df)
 
-    # Ensure datetime early (helps a lot downstream)
-    mag_df["study_date_anon"] = pd.to_datetime(mag_df.get("study_date_anon"), errors="coerce")
-    meta_df["study_date_anon"] = pd.to_datetime(meta_df.get("study_date_anon"), errors="coerce")
-
-    # ----------------------------
-    # Screening vs diagnostic counts (safe contains)
-    # ----------------------------
-    mag_df["screen_exam"] = mag_df["desc"].fillna("").str.contains("screen", case=False)
-
-    print("Screening vs Diagnostic exam counts:")
-    display(mag_df["screen_exam"].value_counts())
-
-    # ----------------------------
-    # Drop rows with no description BEFORE contralateral correction
-    # ----------------------------
-    mag_df = mag_df.dropna(subset=["desc"]).copy()
-    # ----------------------------
-    # Contralateral correction
-    # ----------------------------
-    mag_contra_df = embed_toolkit.correct_contralaterals(mag_df)
-    mag_contra_df = ensure_key_column_dtypes(mag_contra_df)
-
-    # ----------------------------
-    # Derive laterality & worst findings per exam (your existing logic)
-    # ----------------------------
-    mag_contra_df["exam_laterality"] = mag_contra_df.progress_apply(get_exam_laterality, axis=1)  # type: ignore
-
-    worst_br_dict = mag_contra_df.groupby("acc_anon").progress_apply(get_worst_br).to_dict()  # type: ignore
-    mag_contra_df["exam_birads"] = mag_contra_df["acc_anon"].map(worst_br_dict)
-
-    worst_path_dict = (
-        mag_contra_df[mag_contra_df["path_severity"].notna()]
-        .groupby("acc_anon")
-        .progress_apply(get_worst_ps)
-        .to_dict()  # type: ignore
-    )
-    mag_contra_df["exam_path_severity"] = mag_contra_df["acc_anon"].map(worst_path_dict)
-
-    mag_contra_df.embed.summarize("Magview - before filtering metadata")
-    
-    # ----------------------------
+    # ---------------------------
     # Metadata filtering (2D, complete exams, canonical views)
     # ----------------------------
     meta_df = preprocess_metadata(meta_df)
-     # ----------------------------
-    # Screening exam IDs (safe contains + unique)
-    # ----------------------------
-    screening_exam_ids = mag_contra_df[
-        mag_contra_df["desc"].fillna("").str.contains("screen", case=False)
-    ]["acc_anon"].unique()
-
-    meta_df = meta_df[meta_df["acc_anon"].isin(screening_exam_ids)].copy()
-    print("After filtering to screening exams only:")
-    print_dataset_stats(meta_df)
-
-    # Re-check after screening filter: still exactly 4 images/exam
-    counts = meta_df.groupby("acc_anon").size()
-    if not counts.eq(4).all():
-        bad = counts[counts != 4]
-        raise ValueError(f"After screening filter, exams not equal to 4 images:\n{bad.head(10)}")
 
     # ----------------------------
     # Reduce columns + rename
@@ -347,7 +306,7 @@ if __name__ == "__main__":
     # ----------------------------
     # Build cancer outcomes + follow-up (vectorized)
     # ----------------------------
-    meta_df_reduced = build_labels_and_followup(meta_df_reduced, mag_contra_df)
+    meta_df_reduced = build_labels_and_followup(meta_df_reduced, mag_df)
 
     # Add desc placeholder (as you had)
     meta_df_reduced["desc"] = "Screening Bilateral"
