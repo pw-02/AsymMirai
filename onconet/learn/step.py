@@ -23,7 +23,7 @@ def get_model_loss(logit, y, batch, args):
     elif args.eval_survival_on_risk:
         loss = F.binary_cross_entropy_with_logits(logit, y.float())
     elif args.objective == 'cross_entropy':
-        loss = F.cross_entropy(logit, y)
+        loss = F.cross_entropy(logit,y.to(torch.long))
     else:
         raise Exception(
             "Objective {} not supported!".format(args.objective))

@@ -32,7 +32,7 @@ class RiskFactorPool(AbstractPool):
 
     def replaces_fc(self):
         return False
-
+    
     def forward(self, x, risk_factors):
 
         if self.args.replace_snapshot_pool:
@@ -65,17 +65,56 @@ class RiskFactorPool(AbstractPool):
 
             if (not self.training and self.args.use_pred_risk_factors_at_test) or (self.training and self.args.mask_prob > 0):
                 risk_factors_hidden = torch.cat(pred_risk_factors, dim=1)
-        
-        # Fallback to ground-truth RFs if predictions not used
-        if risk_factors_hidden is None and risk_factors is not None:
-            risk_factors_hidden = torch.cat(risk_factors, dim=1)
 
-        # Only concatenate if RFs exist
-        if risk_factors_hidden is not None:
-            hidden = torch.cat((hidden, risk_factors_hidden), dim=1)
-
+        risk_factors_hidden = torch.cat(risk_factors, dim=1) if risk_factors_hidden is None else risk_factors_hidden
+        hidden = torch.cat((hidden, risk_factors_hidden), 1)
         hidden = self.dropout(hidden)
         return None, hidden
+
+
+    # def forward(self, x, risk_factors):
+
+    #     if self.args.replace_snapshot_pool:
+    #         x = x.data
+    #     _, hidden = self.internal_pool(x)
+
+    #     risk_factors_hidden = None
+    #     if self.args.pred_risk_factors:
+    #         pred_risk_factors = []
+    #         for indx, key in enumerate(self.args.risk_factor_keys):
+    #             gold_rf = risk_factors[indx] if risk_factors is not None else None
+    #             key_logit = self._modules['{}_fc'.format(key)](hidden)
+
+    #             if self.args.risk_factor_key_to_num_class[key] == 1:
+    #                 key_probs = torch.sigmoid(key_logit)
+    #             else:
+    #                 key_probs = F.softmax(key_logit, dim=-1)
+
+    #             if not self.training and self.args.use_pred_risk_factors_if_unk:
+    #                 is_rf_known = (torch.sum(gold_rf, dim=-1) > 0).unsqueeze(-1).float()
+    #                 key_probs = (is_rf_known * gold_rf) + (1 - is_rf_known)*key_probs
+    #             elif self.training and self.args.mask_prob > 0 and gold_rf is not None:
+    #                 is_rf_known = np.random.random() > self.args.mask_prob
+    #                 key_probs = (is_rf_known * gold_rf) + (1 - is_rf_known) * key_probs
+
+    #             pred_risk_factors.append(key_probs)
+
+
+
+
+    #         if (not self.training and self.args.use_pred_risk_factors_at_test) or (self.training and self.args.mask_prob > 0):
+    #             risk_factors_hidden = torch.cat(pred_risk_factors, dim=1)
+        
+    #     # Fallback to ground-truth RFs if predictions not used
+    #     if risk_factors_hidden is None and risk_factors is not None:
+    #         risk_factors_hidden = torch.cat(risk_factors, dim=1)
+
+    #     # Only concatenate if RFs exist
+    #     if risk_factors_hidden is not None:
+    #         hidden = torch.cat((hidden, risk_factors_hidden), dim=1)
+
+    #     hidden = self.dropout(hidden)
+    #     return None, hidden
 
         
 

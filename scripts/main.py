@@ -42,8 +42,8 @@ def main():
     args.model_name = 'mirai_full'
     args.img_encoder_snapshot = 'snapshots/mgh_mammo_MIRAI_Base_May20_2019.p'
     args.transformer_snapshot = 'snapshots/mgh_mammo_cancer_MIRAI_Transformer_Jan13_2020.p'
-    args.callibrator_snapshot = 'snapshots/callibrators/MIRAI_FULL_PRED_RF.callibrator.p'
-    args.batch_size = 2
+    args.callibrator_snapshot = None
+    args.batch_size = 1
     args.dataset = 'csv_mammo_risk_all_full_future'
     args.img_mean = [7699.5]
     args.img_size = (2294, 1914)
@@ -54,8 +54,21 @@ def main():
     args.results_path = 'tmp_val_results_for_mirai.json'
     args.cuda = True
     args.num_gpus = 1
-    args.img_dir = '/home/ubuntu/embed'
+    # args.img_dir = '/home/ubuntu/embed'
+    # args.multi_image = True
+
+    args.num_workers = 0
+    args.num_images = 4
     args.multi_image = True
+    args.min_num_images =  4
+    args.pred_risk_factors = True
+    args.use_pred_risk_factors_at_test = True
+    args.survival_analysis_setup = True
+# eval_survival_on_risk    # args.pred_risk_factors = False
+    # args.use_pred_risk_factors_at_test = False
+    # args.risk_factor_keys = []
+
+
 
      # Set random seed
 
@@ -88,7 +101,7 @@ def main():
             model._model.pool = non_trained_model._model.pool
             model._model.args = non_trained_model._model.args
 
-    print(model)
+    # print(model)
 
     # Load run parameters if resuming that run.
     args.model_path = state.get_model_path(args)
@@ -112,10 +125,10 @@ def main():
 
 
 
-    print("\nParameters:")
-    for attr, value in sorted(args.__dict__.items()):
-        if attr not in ['optimizer_state', 'patient_to_partition_dict', 'path_to_hidden_dict', 'exam_to_year_dict', 'exam_to_device_dict']:
-            print("\t{}={}".format(attr.upper(), value))
+    # print("\nParameters:")
+    # for attr, value in sorted(args.__dict__.items()):
+    #     if attr not in ['optimizer_state', 'patient_to_partition_dict', 'path_to_hidden_dict', 'exam_to_year_dict', 'exam_to_device_dict']:
+    #         print("\t{}={}".format(attr.upper(), value))
 
     save_path = args.results_path
     if args.train:
@@ -142,14 +155,16 @@ def main():
         args.test_stats = train.eval_model(test_data, model, args)
      
         print("Save test results to {}".format(save_path))
-        output = {
-        "config": vars(args),
-        "test_stats": args.test_stats,
-        "git_commit": getattr(args, "commit", None),
-        }
+        args_dict = vars(args)
+        pickle.dump(args_dict, open(save_path, 'wb'))
+        # output = {
+        # "config": vars(args),
+        # "test_stats": args.test_stats,
+        # "git_commit": getattr(args, "commit", None),
+        # }
 
-        with open(save_path, "w") as f:
-            json.dump(output, f, indent=2)
+        # with open(save_path, "w") as f:
+        #     json.dump(output, f, indent=2)
 
     if (args.dev or args.test) and args.prediction_save_path is not None:
         exams, probs = [], []

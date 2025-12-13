@@ -258,8 +258,8 @@ def eval_model(test_data, models, args):
         collate_fn=ignore_None_collate,
         pin_memory=True,
         drop_last=False)
-    for s in data_loader:
-        print(s)
+    # for s in data_loader:
+    #     print(s)
 
     loss, golds, preds, probs, exams, reg_loss, censor_times, adv_loss = run_epoch(
         data_loader,

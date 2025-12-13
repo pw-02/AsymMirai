@@ -192,7 +192,7 @@ class ResNet(nn.Module):
         Returns:
             The result of feeding the input through the model.
         """
-
+        
         # Go through all layers up to fc
         if self.args.use_precomputed_hiddens:
             x = x.transpose(2,1)

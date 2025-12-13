@@ -103,6 +103,7 @@ def load_model(path, args, do_wrap_model = True):
             _model.args.use_pred_risk_factors_if_unk = args.use_pred_risk_factors_if_unk
             _model.args.pred_risk_factors = args.pred_risk_factors
             _model.args.use_spatial_transformer = args.use_spatial_transformer
+            # _model.args.use_risk_factors = args.use_risk_factors
         except:
            pass
         try:
