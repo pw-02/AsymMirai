@@ -197,6 +197,7 @@ class Abstract_Onco_Dataset(data.Dataset):
 
     def get_image_item(self, index):
         sample = self.dataset[index]
+        print(sample)
 
         ''' Region annotation for each image. Dict for single image,
             list of dict for multi-image
