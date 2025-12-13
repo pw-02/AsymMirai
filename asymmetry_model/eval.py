@@ -141,7 +141,7 @@ def main(align_images=False,
       # Dataset
     # --------------------
     val_df = pd.read_csv(
-        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv"
+        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_test.csv"
     )
     # val_df = pd.read_csv(
     #     "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_postive_example.csv"
@@ -243,7 +243,7 @@ def main(align_images=False,
                         "y_argmin_mlo": y_mlo,
                         "x_argmin_mlo": x_mlo,
                     }
-                ).to_csv("tmp_val_run.csv", index=False)
+                ).to_csv("tmp_test_run.csv", index=False)
                 print(f"Saved partial CSV at {idx + 1}")
             start = time.perf_counter()
 
@@ -261,7 +261,7 @@ def main(align_images=False,
             "x_argmin_mlo": x_mlo,
         }
     )
-    df.to_csv("tmp_val_run.csv", index=False)
+    df.to_csv("tmp_test_run.csv", index=False)
     print("Final CSV saved.")
 
 
