@@ -65,11 +65,24 @@ class RiskFactorPool(AbstractPool):
 
             if (not self.training and self.args.use_pred_risk_factors_at_test) or (self.training and self.args.mask_prob > 0):
                 risk_factors_hidden = torch.cat(pred_risk_factors, dim=1)
+        
+        # Fallback to ground-truth RFs if predictions not used
+        if risk_factors_hidden is None and risk_factors is not None:
+            risk_factors_hidden = torch.cat(risk_factors, dim=1)
 
-        risk_factors_hidden = torch.cat(risk_factors, dim=1) if risk_factors_hidden is None else risk_factors_hidden
-        hidden = torch.cat((hidden, risk_factors_hidden), 1)
+        # Only concatenate if RFs exist
+        if risk_factors_hidden is not None:
+            hidden = torch.cat((hidden, risk_factors_hidden), dim=1)
+
         hidden = self.dropout(hidden)
         return None, hidden
+
+        
+
+        # risk_factors_hidden = torch.cat(risk_factors, dim=1) if risk_factors_hidden is None else risk_factors_hidden
+        # hidden = torch.cat((hidden, risk_factors_hidden), 1)
+        # hidden = self.dropout(hidden)
+        # return None, hidden
 
 
     def get_pred_rf_loss(self, hidden, risk_factors):
