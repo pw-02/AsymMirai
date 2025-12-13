@@ -139,6 +139,7 @@ def main():
 
         print("-------------\nTest")
         args.test_stats = train.eval_model(test_data, model, args)
+        print(args.test_stats)
         print("Save test results to {}".format(save_path))
         args_dict = vars(args)
         pickle.dump(args_dict, open(save_path, 'wb'))
