@@ -29,7 +29,7 @@ class CSV_Mammo_Cancer_Survival_All_Images_Dataset(Abstract_Onco_Dataset):
         :img_dir: - The path to the dir containing the images.
         """
 
-        def resolve_path(path, img_dir):
+        def resolve_path(path):
             if path is None:
                 return None
             
@@ -40,7 +40,7 @@ class CSV_Mammo_Cancer_Survival_All_Images_Dataset(Abstract_Onco_Dataset):
 
             if os.path.isabs(path):
                 return path
-            return os.path.join(img_dir, path)
+            return os.path.join('/home/ubuntu/embed', path)
 
         dict_dataset = defaultdict(dict)
 
@@ -50,7 +50,7 @@ class CSV_Mammo_Cancer_Survival_All_Images_Dataset(Abstract_Onco_Dataset):
             view = "{} {}".format(row['laterality'], row['view'])
             accession = "{}\t{}".format(patient_id, exam_id)
             file = row['file_path']
-            file = resolve_path(file, img_dir)
+            file = resolve_path(file)
 
             dict_dataset[patient_id]['split'] = split
             dict_dataset[patient_id]['pid'] = patient_id
