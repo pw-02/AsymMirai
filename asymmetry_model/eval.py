@@ -16,7 +16,7 @@ from embed_explore import crop
 from mirai_localized_dif_head import LocalizedDifModel
 from asymmetry_metrics import hybrid_asymmetry
 
-USE_S3 = True
+USE_S3 = False
 
 def get_centroid_activation(heatmap: torch.Tensor, threshold: float = 0.02):
     """
@@ -105,31 +105,31 @@ def main(align_images=False,
     print(f"Using device: {device}")
 
     # Load model
-    # model = torch.load(
-    #     "snapshots/trained_asymmirai.pt",
-    #     map_location=device,
-    #     weights_only=False,
-    # )
-    model = LocalizedDifModel(asymmetry_metric=hybrid_asymmetry,
-                    embedding_channel=512,
-                    latent_h=5,
-                    latent_w=5,
-                    embedding_model=None,
-                    initial_asym_mean=4000,
-                    initial_asym_std=200,
-                    use_stretch=True,
-                    train_backbone=False,
-                    flexible_asymmetry=True,
-                    use_stretch_matrix=False,
-                    device_ids=[0],
-                    use_addon_layers=False,
-                    topk_for_heatmap=None,
-                    use_bias=False,
-                    use_bn=False)
+    model = torch.load(
+        "snapshots/trained_asymmirai.pt",
+        map_location=device,
+        weights_only=False,
+    )
+    # model = LocalizedDifModel(asymmetry_metric=hybrid_asymmetry,
+    #                 embedding_channel=512,
+    #                 latent_h=5,
+    #                 latent_w=5,
+    #                 embedding_model=None,
+    #                 initial_asym_mean=4000,
+    #                 initial_asym_std=200,
+    #                 use_stretch=True,
+    #                 train_backbone=False,
+    #                 flexible_asymmetry=True,
+    #                 use_stretch_matrix=False,
+    #                 device_ids=[0],
+    #                 use_addon_layers=False,
+    #                 topk_for_heatmap=None,
+    #                 use_bias=False,
+    #                 use_bn=False)
     
-    model = model.eval().to(device)
-    model.learned_asym_mean = model.initial_asym_mean
-    model.learned_asym_std = model.initial_asym_std
+    # model = model.eval().to(device)
+    # model.learned_asym_mean = model.initial_asym_mean
+    # model.learned_asym_std = model.initial_asym_std
     # model.latent_h = 5
     # model.latent_w = 5
     # model.topk_for_heatmap = None
@@ -140,12 +140,12 @@ def main(align_images=False,
 
       # Dataset
     # --------------------
-    # val_df = pd.read_csv(
-    #     "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv"
-    # )
     val_df = pd.read_csv(
-        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_postive_example.csv"
+        "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics_val.csv"
     )
+    # val_df = pd.read_csv(
+    #     "data/embed/asymirai_input/EMBED_OpenData_metadata_screening_postive_example.csv"
+    # )
     if USE_S3:
         val_dataset = MiraiMetadatasetS3(
             val_df,
@@ -269,8 +269,8 @@ if __name__ == "__main__":
     main(
         align_images=False,
         use_crop=False,
-        batch_size=1,
-        max_workers=0,
-        print_every=1,
-        save_every=10,
+        batch_size=2,
+        max_workers=10,
+        print_every=50,
+        save_every=200,
     )
