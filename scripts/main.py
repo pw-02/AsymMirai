@@ -41,7 +41,7 @@ def main():
     args.model_name = 'mirai_full'
     args.img_encoder_snapshot = 'snapshots/mgh_mammo_MIRAI_Base_May20_2019.p'
     args.transformer_snapshot = 'snapshots/mgh_mammo_cancer_MIRAI_Transformer_Jan13_2020.p'
-    args.callibrator_snapshot = 'snapshots/MIRAI_FULL_PRED_RF.callibrator.p'
+    args.callibrator_snapshot = 'snapshots/callibrators/MIRAI_FULL_PRED_RF.callibrator.p'
     args.batch_size = 2
     args.dataset = 'csv_mammo_risk_all_full_future'
     args.img_mean = [7699.5]
