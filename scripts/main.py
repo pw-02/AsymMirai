@@ -47,7 +47,7 @@ def main():
     args.img_mean = [7699.5]
     args.img_size = (2294, 1914)
     args.img_std = [11765.06]
-    args.metadata_path = 'mirai/mirai_input.csv'
+    args.metadata_path = 'mirai/mirai_input_test.csv'
     args.test = True
     args.prediction_save_path = 'tmp_val_prdictions_for_mirai.csv'
     args.results_path = 'tmp_val_results_for_mirai.csv'
