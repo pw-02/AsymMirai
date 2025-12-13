@@ -219,7 +219,9 @@ class Abstract_Onco_Dataset(data.Dataset):
                             additionals[img_index]['region_annotation'] = region_annotation[img_index]
                 x = self.image_loader.get_images(sample['paths'], additionals)
             else:
-                additional = {} if sample['additional'] is None else sample['additional']
+
+                additional = {}
+                # additional = {} if sample['additional'] is None else sample['additional']
                 if self.args.use_region_annotation:
                     additional['region_annotation'] = region_annotation
                 x = self.image_loader.get_image(sample['path'], additional)
