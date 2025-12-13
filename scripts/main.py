@@ -16,6 +16,7 @@ from onconet.utils.get_dataset_stats import get_dataset_stats
 import onconet.utils.stats as stats
 import pdb
 import csv
+import json
 
 #Constants
 DATE_FORMAT_STR = "%Y-%m-%d:%H-%M-%S"
@@ -50,7 +51,7 @@ def main():
     args.metadata_path = 'mirai/mirai_input_test.csv'
     args.test = True
     args.prediction_save_path = 'tmp_val_prdictions_for_mirai.csv'
-    args.results_path = 'tmp_val_results_for_mirai.csv'
+    args.results_path = 'tmp_val_results_for_mirai.json'
     args.cuda = True
     args.num_gpus = 1
     args.img_dir = '/home/ubuntu/embed'
@@ -139,10 +140,16 @@ def main():
 
         print("-------------\nTest")
         args.test_stats = train.eval_model(test_data, model, args)
-        print(args.test_stats)
+     
         print("Save test results to {}".format(save_path))
-        args_dict = vars(args)
-        pickle.dump(args_dict, open(save_path, 'wb'))
+        output = {
+        "config": vars(args),
+        "test_stats": args.test_stats,
+        "git_commit": getattr(args, "commit", None),
+        }
+
+        with open(save_path, "w") as f:
+            json.dump(output, f, indent=2)
 
     if (args.dev or args.test) and args.prediction_save_path is not None:
         exams, probs = [], []
