@@ -30,8 +30,8 @@ class CSV_Mammo_Cancer_Survival_All_Images_Dataset(Abstract_Onco_Dataset):
         """
 
         def resolve_path(path):
-            if path is None:
-                return None
+            # if path is None:
+            #     return None
             
             #change extension to .png
             base, ext = os.path.splitext(path)
