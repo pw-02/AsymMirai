@@ -54,6 +54,7 @@ def main():
     args.cuda = True
     args.num_gpus = 1
     args.img_dir = '/home/ubuntu/embed'
+    args.multi_image = True
 
      # Set random seed
 
