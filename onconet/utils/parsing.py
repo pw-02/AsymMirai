@@ -1,7 +1,7 @@
 import argparse
 import torch
 import os
-import pwd
+# import pwd
 from onconet.datasets.factory import get_dataset_class
 
 EMPTY_NAME_ERR = 'Name of transformer or one of its arguments cant be empty\n\
@@ -361,7 +361,7 @@ def parse_args():
 
     args.cuda = args.cuda and torch.cuda.is_available()
     args.device = 'cuda' if args.cuda else 'cpu'
-    args.unix_username = pwd.getpwuid( os.getuid() )[0]
+    # args.unix_username = pwd.getpwuid( os.getuid() )[0]
 
 
     # learning initial state

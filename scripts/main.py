@@ -19,18 +19,50 @@ import csv
 
 #Constants
 DATE_FORMAT_STR = "%Y-%m-%d:%H-%M-%S"
+# %run ./scripts/main.py  --model_name mirai_full \
+#                         --img_encoder_snapshot ./snapshots/mgh_mammo_MIRAI_Base_May20_2019.p \
+#                         --transformer_snapshot ./snapshots/mgh_mammo_cancer_MIRAI_Transformer_Jan13_2020.p  \
+#                         --callibrator_snapshot ./snapshots/callibrators/MIRAI_FULL_PRED_RF.callibrator.p \
+#                         --batch_size 2 \
+#                         --dataset csv_mammo_risk_all_full_future \
+#                         --img_mean 7699.5 \
+#                         --img_size 2294 1914 \
+#                         --img_std 11765.06 \
+#                         --metadata_path ./tmp_val_input_for_mirai_2.csv\
+#                         --test \
+#                         --prediction_save_path ./tmp_val_prdictions_for_mirai.csv \
+#                         --results_path ./tmp_val_prdictions_for_mirai.csv \
+#                         --cuda \
+#                         --num_gpus 1 \
+#                         --test
 
-if __name__ == '__main__':
+def main():
     args = parsing.parse_args()
-    if args.ignore_warnings:
-        warnings.simplefilter('ignore')
+    args.model_name = 'mirai_full'
+    args.img_encoder_snapshot = 'snapshots/mgh_mammo_MIRAI_Base_May20_2019.p'
+    args.transformer_snapshot = 'snapshots/mgh_mammo_cancer_MIRAI_Transformer_Jan13_2020.p'
+    # args.callibrator_snapshot = 'snapshots\\callibrators\\MIRAI_FULL_PRED_RF.callibrator.p'
+    args.batch_size = 2
+    args.dataset = 'csv_mammo_risk_all_full_future'
+    args.img_mean = [7699.5]
+    args.img_size = (2294, 1914)
+    args.img_std = [11765.06]
+    args.metadata_path = 'mirai/mirai_input.csv'
+    args.test = True
+    args.prediction_save_path = 'tmp_val_prdictions_for_mirai.csv'
+    args.results_path = 'tmp_val_results_for_mirai.csv'
+    args.cuda = True
+    args.num_gpus = 1
+    args.img_dir = '/home/ubuntu/embed'
+
+     # Set random seed
 
     repo = git.Repo(search_parent_directories=True)
     commit  = repo.head.object
     args.commit = commit.hexsha
     print("OncoNet main running from commit: \n\n{}\n{}author: {}, date: {}".format(
         commit.hexsha, commit.message, commit.author, commit.committed_date))
-
+    
     if args.get_dataset_stats:
         print("\nComputing image mean and std...")
         args.img_mean, args.img_std = get_dataset_stats(args)
@@ -42,8 +74,7 @@ if __name__ == '__main__':
         args.image_transformers, args.tensor_transformers, args)
     test_transformers = transformer_factory.get_transformers(
         args.test_image_transformers, args.test_tensor_transformers, args)
-    # Load dataset and add dataset specific information to args
-    print("\nLoading data...")
+    
     train_data, dev_data, test_data = dataset_factory.get_dataset(args, transformers, test_transformers)
     # Load model and add model specific information to args
     if args.snapshot is None:
@@ -55,8 +86,8 @@ if __name__ == '__main__':
             model._model.pool = non_trained_model._model.pool
             model._model.args = non_trained_model._model.args
 
-
     print(model)
+
     # Load run parameters if resuming that run.
     args.model_path = state.get_model_path(args)
     print('Trained model will be saved to [%s]' % args.model_path)
@@ -76,6 +107,7 @@ if __name__ == '__main__':
             print("\n Error loading previous state. \n Starting run from scratch.")
     else:
         print("\n Restarting run from scratch.")
+
 
 
     print("\nParameters:")
@@ -141,3 +173,9 @@ if __name__ == '__main__':
         print("Exported predictions to {}".format(args.prediction_save_path))
 
 
+
+
+
+if __name__ == '__main__':
+    main()
+   
