@@ -21,9 +21,9 @@ from skimage.transform import hough_line, hough_line_peaks
 BASE_DIR = "/media/pwatters/WD_BLACK/MammoDataset/EMBED/"
 
 # BASE_DIR = ""
-INPUT_FILE = "radiomics/files_to_process_cc.txt"
-PROCESSED_FILE = "radiomics/files_processed.txt"
-OUTPUT_CSV = "radiomics/radiomics_features.csv"
+INPUT_FILE = "radiomics/files_to_process_mlo.txt"
+PROCESSED_FILE = "radiomics/files_processed_mlo.txt"
+OUTPUT_CSV = "radiomics/radiomics_features_mlo.csv"
 
 DEBUG_PLOT = False          # set True for single-image debugging
 N_WORKERS = max(1, cpu_count() - 1)
@@ -271,6 +271,8 @@ def process_one(rel_path):
         # If mask empty, skip
         if mask.sum() == 0:
             return {"path": rel_path, "error": "empty_mask"}
+        
+        remove_pectoral_muscle(image, create_mask(norm))
 
         radiomics = extract_radiomics_features(image, mask)
 
