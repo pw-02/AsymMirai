@@ -15,19 +15,31 @@ from numpy.fft import fft2, ifft2, fftshift
 from radiomics import featureextractor
 from skimage.feature import canny
 from skimage.transform import hough_line, hough_line_peaks
+import matplotlib.pyplot as plt
+import numpy as np
 # -----------------------------
 # CONFIG
 # -----------------------------
-BASE_DIR = "/media/pwatters/WD_BLACK/MammoDataset/EMBED/"
 
-# BASE_DIR = ""
-INPUT_FILE = "radiomics/files_to_process_mlo.txt"
-PROCESSED_FILE = "radiomics/files_processed_mlo.txt"
-OUTPUT_CSV = "radiomics/radiomics_features_mlo.csv"
+TEST_MODE = True      # set True for quick debugging on few images
+DEBUG_PLOT = False    # show intermediate images for debugging
 
-DEBUG_PLOT = False          # set True for single-image debugging
-N_WORKERS = max(1, cpu_count() - 1)
-FLUSH_EVERY = 200           # write partial CSV every N successful cases
+if TEST_MODE:
+    BASE_DIR = ""
+    INPUT_FILE = "radiomics/files_to_process_test.txt"
+    PROCESSED_FILE = "radiomics/files_to_process_test_processed.txt"
+    OUTPUT_CSV = "radiomics/files_to_process_test_features.csv"
+else:
+    BASE_DIR = "/media/pwatters/WD_BLACK/MammoDataset/EMBED/"
+    INPUT_FILE = "radiomics/files_to_process_mlo.txt"
+    PROCESSED_FILE = "radiomics/files_processed_mlo.txt"
+    OUTPUT_CSV = "radiomics/radiomics_features_mlo.csv"
+
+
+
+          # set True for single-image debugging
+N_WORKERS = max(1, cpu_count() - 1) if not TEST_MODE else 1
+FLUSH_EVERY = 200 if not TEST_MODE else 1
 
 # Radiomics speed control:
 # If you enable only a few feature classes, runtime drops a lot.
@@ -112,42 +124,67 @@ def remove_pectoral_muscle(img, mask):
 # -----------------------------
 # CUSTOM FEATURES
 # -----------------------------
-def autocorrelation_decay(img, mask=None, max_radius=128):
+import numpy as np
+from numpy.fft import fft2, ifft2, fftshift
+
+def autocorrelation_decay(
+    img,
+    mask,
+    spacing=(1.0, 1.0),
+    max_radius=None,
+):
     img = img.astype(np.float32)
+    mask = mask.astype(bool)
 
-    if mask is not None:
-        if mask.shape != img.shape:
-            raise ValueError(f"Mask {mask.shape} != image {img.shape}")
-        img = img * mask.astype(np.float32)
+    if mask.shape != img.shape:
+        raise ValueError("Mask and image shape mismatch")
 
-    img = img - np.mean(img)
+    if mask.sum() < 20:
+        return np.nan
 
+    # Normalize INSIDE mask
+    vals = img[mask]
+    img = img.copy()
+    img[mask] = (vals - vals.mean()) / (vals.std() + 1e-8)
+    img[~mask] = 0.0
+
+    # Autocorrelation
     F = fft2(img)
     acf = fftshift(ifft2(np.abs(F) ** 2).real)
-    acf = acf / (acf.max() + 1e-8)
+    acf /= acf.max() + 1e-8
 
     H, W = acf.shape
     cy, cx = H // 2, W // 2
+
     y, x = np.indices((H, W))
-    r = np.sqrt((x - cx) ** 2 + (y - cy) ** 2)
+    dy = (y - cy) * spacing[0]
+    dx = (x - cx) * spacing[1]
+    r = np.sqrt(dx**2 + dy**2)
 
-    maxR = min(max_radius, min(H, W) // 2)
-    radial = np.empty(maxR - 1, dtype=np.float32)
+    maxR = max_radius or min(H, W) * min(spacing) / 4
 
-    # This loop is relatively cheap compared to radiomics,
-    # but you can speed it further by computing bins.
-    for R in range(1, maxR):
-        ring = (r >= R - 0.5) & (r < R + 0.5)
-        radial[R - 1] = acf[ring].mean() if np.any(ring) else np.nan
+    # Radial bins
+    dr = min(spacing)
+    bins = np.arange(0, maxR, dr)
+    radial = np.zeros(len(bins) - 1)
 
-    valid = ~np.isnan(radial)
-    radii = np.arange(1, maxR)[valid]
-    values = radial[valid]
+    for i in range(len(bins) - 1):
+        ring = (r >= bins[i]) & (r < bins[i + 1])
+        if np.any(ring):
+            radial[i] = acf[ring].mean()
+        else:
+            radial[i] = np.nan
 
-    logv = np.log(values + 1e-8)
-    coeffs = np.polyfit(radii, logv, 1)
-    decay_rate = -coeffs[0]
-    return float(decay_rate)
+    valid = (~np.isnan(radial)) & (radial > 0)
+    if valid.sum() < 5:
+        return np.nan
+
+    radii = bins[:-1][valid]
+    logv = np.log(radial[valid])
+
+    slope = np.polyfit(radii, logv, 1)[0]
+    return float(-slope)
+
 
 
 def lacunarity(img, mask=None, box_sizes=(2, 4, 8, 16, 32)):
@@ -210,14 +247,27 @@ def fractal_dimension_binary(mask):
 # -----------------------------
 # IMAGE LOADING / MASKING
 # -----------------------------
+# def dicom_to_2d_image(dicom_path):
+#     # SimpleITK ReadImage is fine; pydicom often slower unless you optimize.
+#     sitk_img = sitk.ReadImage(dicom_path)
+#     arr3d = sitk.GetArrayFromImage(sitk_img)
+#     arr2d = arr3d[0].astype(np.float32)
+
+#     mn, mx = float(arr2d.min()), float(arr2d.max())
+#     norm = (arr2d - mn) / (mx - mn + 1e-8)
+#     return arr2d, norm
+
 def dicom_to_2d_image(dicom_path):
-    # SimpleITK ReadImage is fine; pydicom often slower unless you optimize.
     sitk_img = sitk.ReadImage(dicom_path)
     arr3d = sitk.GetArrayFromImage(sitk_img)
     arr2d = arr3d[0].astype(np.float32)
 
-    mn, mx = float(arr2d.min()), float(arr2d.max())
-    norm = (arr2d - mn) / (mx - mn + 1e-8)
+    # Clip to a fixed, meaningful range
+    arr2d = np.clip(arr2d, np.percentile(arr2d, 1), np.percentile(arr2d, 99))
+
+    # Scale using a fixed denominator
+    norm = (arr2d - arr2d.min()) / (arr2d.max() - arr2d.min() + 1e-8)
+
     return arr2d, norm
 
 
@@ -244,14 +294,19 @@ def create_mask(img_norm, min_size=5000):
 # -----------------------------
 # RADIOMICS (in-memory)
 # -----------------------------
-def extract_radiomics_features(image_np, mask_np):
+def extract_radiomics_features(image_np, mask_np, spacing=(1.0, 1.0)):
     image_sitk = sitk.GetImageFromArray(image_np.astype(np.float32))
-    mask_sitk = sitk.GetImageFromArray(mask_np.astype(np.uint8))
+    mask_sitk = sitk.GetImageFromArray((mask_np > 0).astype(np.uint8))
 
-    # Ensure mask is binary 0/1 (PyRadiomics expects labeled mask)
-    # If you want label=1 region, keep as is.
+    image_sitk.SetSpacing(spacing)
+    mask_sitk.SetSpacing(spacing)
+
     result = EXTRACTOR.execute(image_sitk, mask_sitk)
-    return {k: v for k, v in result.items() if "diagnostics" not in k}
+    
+    return {
+        k: v for k, v in result.items()
+        if not k.startswith("diagnostics")
+    }
 
 
 # -----------------------------
@@ -271,15 +326,53 @@ def process_one(rel_path):
         # If mask empty, skip
         if mask.sum() == 0:
             return {"path": rel_path, "error": "empty_mask"}
-        
-        remove_pectoral_muscle(image, create_mask(norm))
+        if DEBUG_PLOT:
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            # --- 1. Image ---
+            axes[0].imshow(norm, cmap="gray")
+            axes[0].set_title("Image (normalized)")
+            axes[0].axis("off")
 
-        radiomics = extract_radiomics_features(image, mask)
+            # --- 2. Mask ---
+            axes[1].imshow(mask, cmap="gray")
+            axes[1].set_title("Mask")
+            axes[1].axis("off")
+
+            # --- 3. Overlay (BEST diagnostic view) ---
+            axes[2].imshow(norm, cmap="gray")
+            axes[2].contour(mask, levels=[0.5], colors="red", linewidths=1)
+
+            # axes[2].imshow(mask, cmap="Reds", alpha=0.35)
+            axes[2].set_title("Overlay (image + mask)")
+            axes[2].axis("off")
+
+            plt.tight_layout()
+            plt.show()
+        
+        #remove_pectoral_muscle(image, create_mask(norm))
+
+        # if DEBUG_PLOT:
+        #     plt.title("Mask after muscle removal")
+        #     plt.imshow(mask, cmap="gray")
+        #     plt.axis("off")
+        #     plt.show()
+        # 
+        #  # radiomics = extract_radiomics_features(image, mask)
+        features_list = extract_radiomics_features(norm, mask)
+
+        if TEST_MODE:
+            # df = pd.DataFrame(features_list)
+            # print(df.shape)
+            # print(df.isna().sum().sort_values(ascending=False).head())
+
+            print(f"Radiomics features for {rel_path}:")
+            for k, v in features_list.items():
+                print(f"  {k}: {v}")
 
         # custom
-        acd = autocorrelation_decay(image, mask)
+        acd = autocorrelation_decay(norm, mask)
         fd = fractal_dimension_binary(mask)
-        lac = lacunarity(image, mask)
+        lac = lacunarity(norm, mask)
 
         out = {
             "path": rel_path,
@@ -287,7 +380,7 @@ def process_one(rel_path):
             "fractal_dimension_mask": fd,
         }
         out.update(lac)
-        out.update(radiomics)
+        out.update(features_list)
 
         #cleanup NaNs/Infs
 
