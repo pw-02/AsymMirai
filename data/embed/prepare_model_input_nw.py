@@ -247,8 +247,8 @@ def print_dataset_stats(df: pd.DataFrame):
     print(" Total number of images:", df.shape[0])
 
 def ensure_key_column_dtypes(df: pd.DataFrame) -> pd.DataFrame:
-    df['empi_anon'] = pd.to_numeric(df['empi_anon'])
-    df['acc_anon'] = pd.to_numeric(df['acc_anon'])
+    # df['empi_anon'] = pd.to_numeric(df['empi_anon'])
+    # df['acc_anon'] = pd.to_numeric(df['acc_anon'])
     df['study_date_anon'] = pd.to_datetime(df['study_date_anon'])
     return df
 
@@ -257,15 +257,33 @@ if __name__ == "__main__":
     # Load
     # ----------------------------
     mag_df = pd.read_csv("data/embed/tables/EMBED_OpenData_clinical.csv")
-    meta_df = pd.read_csv("data/embed/tables/EMBED_OpenData_metadata_reduced.csv")
+    meta_df = pd.read_csv("data/embed/tables/EMBED_OpenData_metadata.csv")
 
     meta_df = ensure_key_column_dtypes(meta_df)
     mag_df = ensure_key_column_dtypes(mag_df)
+
+    #ensure that all 'acc_anon' in mag_df are also in meta_df
+    if not mag_df['acc_anon'].isin(meta_df['acc_anon']).all():
+        print("Some 'acc_anon' in mag_df are not present in meta_df. Examples:")
+        missing_acc_anons = mag_df.loc[~mag_df['acc_anon'].isin(meta_df['acc_anon']), 'acc_anon']
+        print(missing_acc_anons.tolist())
+        raise ValueError("Some 'acc_anon' in mag_df are not present in meta_df.")
+    else:
+        print("All 'acc_anon' in mag_df are present in meta_df.")
 
     # ---------------------------
     # Metadata filtering (2D, complete exams, canonical views)
     # ----------------------------
     meta_df = preprocess_metadata(meta_df)
+
+    #ensure that all 'acc_anon' in mag_df are also in meta_df
+    if not meta_df['acc_anon'].isin(mag_df['acc_anon']).all():
+        print("Some 'acc_anon' in mag_df are not present in meta_df. Examples:")
+        missing_acc_anons = meta_df.loc[~meta_df['acc_anon'].isin(mag_df['acc_anon']), 'acc_anon']
+        print(missing_acc_anons.tolist())
+        raise ValueError("Some 'acc_anon' in mag_df are not present in meta_df.")
+    else:
+        print("All 'acc_anon' in mag_df are present in meta_df.")
 
     # ----------------------------
     # Reduce columns + rename
@@ -280,7 +298,7 @@ if __name__ == "__main__":
         "spot_mag",
     ]
 
-    meta_df_reduced = meta_df[cols_to_retain].copy()
+    meta_df_reduced = meta_df[cols_to_retain]
 
     meta_df_reduced = meta_df_reduced.rename(
         columns={
@@ -297,6 +315,15 @@ if __name__ == "__main__":
     # Build cancer outcomes + follow-up (vectorized)
     # ----------------------------
     meta_df_reduced = build_labels_and_followup(meta_df_reduced, mag_df)
+
+    #ensure all exam ids in meta_df_reduced are acc_anon in mag_df
+    if not meta_df_reduced['exam_id'].isin(mag_df['acc_anon']).all():
+        print("Some 'exam_id' in meta_df_reduced are not present in mag_df. Examples:")
+        missing_exam_ids = meta_df_reduced.loc[~meta_df_reduced['exam_id'].isin(mag_df['acc_anon']), 'exam_id']
+        print(missing_exam_ids.tolist())
+        raise ValueError("Some 'exam_id' in meta_df_reduced are not present in mag_df.")
+    else:
+        print("All 'exam_id' in meta_df_reduced are present in mag_df.")
 
     # Add desc placeholder (as you had)
     meta_df_reduced["desc"] = "Screening Bilateral"

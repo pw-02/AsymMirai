@@ -13,7 +13,7 @@ def print_splt_info(df, split_name):
     print(f"{split_name} - Total Exams: {total_exams}, Total Patients: {total_patients}, Cancer Exams: {cancer_exams}, Cancer Patients: {cancer_patients}")
 
 
-all_data_path = 'C:\\Users\\pw\\projects\\AsymMirai\\data\\embed\\asymirai_input\\EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics.csv'
+all_data_path = 'data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams_with_demographics.csv'
 all_data = pd.read_csv(all_data_path)
 
 unique_exams = all_data['exam_id'].unique().tolist()
