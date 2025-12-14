@@ -37,6 +37,7 @@ class CSV_Mammo_Cancer_Survival_All_Images_Dataset(Abstract_Onco_Dataset):
             base, ext = os.path.splitext(path)
             path = base + ".png"
             # path = path.replace("images/","downloaded_files/images")
+            path = path.replace("images/","")
 
             if os.path.isabs(path):
                 return path
