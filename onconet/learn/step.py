@@ -119,6 +119,7 @@ def model_step(x, y, risk_factors, batch, models, optimizers, train_model,  args
         - exams: exam ids for batch if available
         - hiddens: feature rep for batch
     '''
+    print("starting model step")
     if args.use_risk_factors:
         logit, hidden, activ_dict = models['model'](x, risk_factors=risk_factors, batch=batch)
     else:
@@ -132,6 +133,7 @@ def model_step(x, y, risk_factors, batch, models, optimizers, train_model,  args
     if args.eval_survival_on_risk:
         logit = logit[:, args.years_risk - 1]
 
+    print("computing loss")
     loss = get_model_loss(logit, y, batch, args)
 
     if args.pred_both_sides:
@@ -220,7 +222,7 @@ def model_step(x, y, risk_factors, batch, models, optimizers, train_model,  args
             csv_row = csv_row + str(ele) + ","
         f.write(csv_row + "\n")
         
-
+    print("finished model step")
 
     return  loss, reg_loss, preds, probs, golds, exams, hiddens, adv_loss
 
