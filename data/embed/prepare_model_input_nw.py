@@ -105,6 +105,8 @@ def preprocess_metadata(meta_df: pd.DataFrame) -> pd.DataFrame:
     print("After filtering out incomplete exams:")
     print_dataset_stats(meta_df)
 
+
+    
     # ---- keep canonical views only ---
     meta_df = meta_df[
         meta_df["ViewPosition"].isin(REQUIRED_VIEWS)

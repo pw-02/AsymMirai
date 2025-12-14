@@ -17,11 +17,13 @@ from skimage.feature import canny
 from skimage.transform import hough_line, hough_line_peaks
 import matplotlib.pyplot as plt
 import numpy as np
+from skimage.feature import local_binary_pattern
+import numpy as np
 # -----------------------------
 # CONFIG
 # -----------------------------
 
-TEST_MODE = True      # set True for quick debugging on few images
+TEST_MODE = False      # set True for quick debugging on few images
 DEBUG_PLOT = False    # show intermediate images for debugging
 
 if TEST_MODE:
@@ -30,15 +32,20 @@ if TEST_MODE:
     PROCESSED_FILE = "radiomics/files_to_process_test_processed.txt"
     OUTPUT_CSV = "radiomics/files_to_process_test_features.csv"
 else:
-    BASE_DIR = "/media/pwatters/WD_BLACK/MammoDataset/EMBED/"
-    INPUT_FILE = "radiomics/files_to_process_mlo.txt"
-    PROCESSED_FILE = "radiomics/files_processed_mlo.txt"
-    OUTPUT_CSV = "radiomics/radiomics_features_mlo.csv"
+    BASE_DIR = "D:\\MammoDataset\\EMBED" #"/media/pwatters/WD_BLACK/MammoDataset/EMBED/" 
+    # INPUT_FILE = "radiomics/files_to_process_mlo.txt"
+    # PROCESSED_FILE = "radiomics/files_processed_mlo.txt"
+    # OUTPUT_CSV = "radiomics/radiomics_features_mlo.csv"
+    INPUT_FILE = "radiomics/density_4_files.txt"
+    PROCESSED_FILE = "radiomics/density_4_files_processed.txt"
+    OUTPUT_CSV = "radiomics/radiomics_features_density_4.csv"
+    
 
 
 
           # set True for single-image debugging
 N_WORKERS = max(1, cpu_count() - 1) if not TEST_MODE else 1
+N_WORKERS = 1
 FLUSH_EVERY = 200 if not TEST_MODE else 1
 
 # Radiomics speed control:
@@ -51,7 +58,8 @@ ENABLED_CLASSES = ["firstorder", "glcm", "glrlm"]  # adjust as needed
 # RADIOMICS EXTRACTOR (init once)
 # -----------------------------
 EXTRACTOR = featureextractor.RadiomicsFeatureExtractor(
-    binWidth=25,
+    # binWidth=25,
+    binCount=128,
     normalize=True,
     resampledPixelSpacing=None,
     interpolator="sitkBSpline",
@@ -244,6 +252,22 @@ def fractal_dimension_binary(mask):
     return float(-coeffs[0])
 
 
+
+
+def compute_lbp(image, mask, radius=1, n_points=8, method="uniform"):
+    lbp = local_binary_pattern(image, n_points, radius, method)
+    lbp_roi = lbp[mask > 0]
+
+    return {
+        "LBP_mean": np.mean(lbp_roi),
+        "LBP_std": np.std(lbp_roi),
+        "LBP_entropy": -np.sum(
+            np.histogram(lbp_roi, bins=32, density=True)[0]
+            * np.log2(np.histogram(lbp_roi, bins=32, density=True)[0] + 1e-10)
+        ),
+    }
+
+
 # -----------------------------
 # IMAGE LOADING / MASKING
 # -----------------------------
@@ -321,6 +345,8 @@ def process_one(rel_path):
 
     try:
         image, norm = dicom_to_2d_image(dicom_path)
+
+
         mask = create_mask(norm)
 
         # If mask empty, skip
