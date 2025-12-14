@@ -84,8 +84,7 @@ def load_model(path, args, do_wrap_model = True):
     try:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-        model = torch.load(path, map_location=    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-, weights_only=False)
+        model = torch.load(path, map_location=device, weights_only=False)
 
         if isinstance(model, dict):
             model = model['model']
