@@ -81,6 +81,7 @@ def main():
             "MARITAL_STATUS_DESC",
             "age_at_study",
             "tissueden",
+            "path_severity",
         ]
     ].rename(
         columns={
@@ -114,9 +115,6 @@ def main():
         missing_exam_ids = input_data.loc[~input_data['exam_id'].isin(demographic_data['exam_id']), 'exam_id']
         print("Missing exam_ids in demographic_data: ", missing_exam_ids.tolist())
         raise ValueError("Some exam_ids in input_data are not present in demographic_data.")
-
-
-
 
 
     IMAGE_PATH_COL = "dicom_path"
