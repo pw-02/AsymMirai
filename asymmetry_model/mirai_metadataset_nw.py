@@ -132,8 +132,7 @@ class MiraiMetadataset(Dataset):
         base, ext = os.path.splitext(path)
         path = base + ".png"
         path = path.replace("images/","")
-
-
+        
         if os.path.isabs(path):
             return path
         return os.path.join(self.root_dir, path)

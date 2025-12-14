@@ -40,8 +40,8 @@ class CSV_Mammo_Cancer_Survival_All_Images_Dataset(Abstract_Onco_Dataset):
 
             if os.path.isabs(path):
                 return path
-            # return os.path.join('/home/ubuntu/embed', path)
-            return os.path.join('downloaded_files', path).replace("/","\\")  # For windows compatibility
+            return os.path.join('/home/ubuntu/embed', path)
+            # return os.path.join('downloaded_files', path).replace("/","\\")  # For windows compatibility
 
         dict_dataset = defaultdict(dict)
 
