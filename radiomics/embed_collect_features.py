@@ -32,7 +32,7 @@ if TEST_MODE:
     PROCESSED_FILE = "radiomics/files_to_process_test_processed.txt"
     OUTPUT_CSV = "radiomics/files_to_process_test_features.csv"
 else:
-    BASE_DIR = "D:\\MammoDataset\\EMBED" #"/media/pwatters/WD_BLACK/MammoDataset/EMBED/" 
+    BASE_DIR = "/media/pwatters/WD_BLACK/MammoDataset/EMBED/" 
     # INPUT_FILE = "radiomics/files_to_process_mlo.txt"
     # PROCESSED_FILE = "radiomics/files_processed_mlo.txt"
     # OUTPUT_CSV = "radiomics/radiomics_features_mlo.csv"
@@ -45,7 +45,7 @@ else:
 
           # set True for single-image debugging
 N_WORKERS = max(1, cpu_count() - 1) if not TEST_MODE else 1
-N_WORKERS = 1
+# N_WORKERS = 1
 FLUSH_EVERY = 200 if not TEST_MODE else 1
 
 # Radiomics speed control:
