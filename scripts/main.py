@@ -57,7 +57,7 @@ def main():
     # args.img_dir = '/home/ubuntu/embed'
     # args.multi_image = True
 
-    args.num_workers = 10
+    args.num_workers = 1
     args.num_images = 4
     args.multi_image = True
     args.min_num_images =  4
