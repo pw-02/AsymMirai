@@ -1,5 +1,6 @@
 import os
 import sys
+from matplotlib.pylab import spacing
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
@@ -18,16 +19,17 @@ from skimage.transform import hough_line, hough_line_peaks
 import matplotlib.pyplot as plt
 import numpy as np
 from skimage.feature import local_binary_pattern
-import numpy as np
+from skimage.filters import sobel, gaussian
+
 # -----------------------------
 # CONFIG
 # -----------------------------
 
-TEST_MODE = False      # set True for quick debugging on few images
+TEST_MODE = True      # set True for quick debugging on few images
 DEBUG_PLOT = False    # show intermediate images for debugging
 
 if TEST_MODE:
-    BASE_DIR = ""
+    BASE_DIR = "data/example_dicoms"
     INPUT_FILE = "radiomics/files_to_process_test.txt"
     PROCESSED_FILE = "radiomics/files_to_process_test_processed.txt"
     OUTPUT_CSV = "radiomics/files_to_process_test_features.csv"
@@ -41,9 +43,7 @@ else:
     OUTPUT_CSV = "radiomics/radiomics_features_density_4.csv"
     
 
-
-
-          # set True for single-image debugging
+# set True for single-image debugging
 N_WORKERS = max(1, cpu_count() - 1) if not TEST_MODE else 1
 # N_WORKERS = 1
 FLUSH_EVERY = 200 if not TEST_MODE else 1
@@ -53,14 +53,13 @@ FLUSH_EVERY = 200 if not TEST_MODE else 1
 ENABLE_LIMITED_RADIOMICS = True
 ENABLED_CLASSES = ["firstorder", "glcm", "glrlm"]  # adjust as needed
 
-
 # -----------------------------
 # RADIOMICS EXTRACTOR (init once)
 # -----------------------------
 EXTRACTOR = featureextractor.RadiomicsFeatureExtractor(
     # binWidth=25,
     binCount=128,
-    normalize=True,
+    normalize=False,
     resampledPixelSpacing=None,
     interpolator="sitkBSpline",
 )
@@ -73,61 +72,198 @@ if ENABLE_LIMITED_RADIOMICS:
 
 def remove_pectoral_muscle(img, mask):
     """
-    Automatically detect and remove the pectoral muscle in MLO mammograms.
-    Handles both left and right MLO views.
+    Conservative pectoral muscle removal for MLO mammograms.
+    Returns cleaned mask. If detection is unreliable, returns original mask.
     """
 
     H, W = img.shape
 
-    # --- 1. Determine whether muscle is left or right ---
-    left_brightness  = img[0:H//4, 0:W//4].mean()
-    right_brightness = img[0:H//4, W//2:W].mean()
-
-    if left_brightness > right_brightness:
-        roi = img[:H//3, :W//2]       # muscle left
-        x_offset = 0
-    else:
-        roi = img[:H//3, W//2:W]      # muscle right
-        x_offset = W//2
-
-    # --- 2. Edge detection ---
-    edges = canny(roi, sigma=2)
-
-    # --- 3. Hough transform ---
-    hspace, angles, dists = hough_line(edges)
-    h_peaks, angle_peaks, dist_peaks = hough_line_peaks(hspace, angles, dists)
-
-    # If no line found → skip muscle removal
-    if len(angle_peaks) == 0:
+    # --------------------------------------------------
+    # 1. Determine breast side from mask geometry
+    # --------------------------------------------------
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
         return mask
 
-    angle = angle_peaks[0]
-    dist  = dist_peaks[0]
+    left_side = xs.mean() < (W / 2)
 
-    # --- 4. Convert Hough line into full-image coordinates ---
-    y0 = 0
-    x0 = (dist - y0 * np.sin(angle)) / np.cos(angle) + x_offset
+    roi_h = int(0.45 * H)
+    if left_side:
+        roi = img[:roi_h, :W // 2]
+        x_offset = 0
+        angle_range = (15, 90)      # degrees
+    else:
+        roi = img[:roi_h, W // 2:]
+        x_offset = W // 2
+        angle_range = (-80, -15)    # degrees
 
-    y1 = H//3
-    x1 = (dist - y1 * np.sin(angle)) / np.cos(angle) + x_offset
+    # --------------------------------------------------
+    # 2. Robust edge detection (gradient-based)
+    # --------------------------------------------------
+    grad = sobel(roi)
+    edges = grad > np.percentile(grad, 90)
+    edges = remove_small_objects(edges, min_size=200)
 
-    # --- 5. Create region ABOVE the detected pectoral line ---
-    rr, cc = np.indices(mask.shape)
+    if edges.sum() < 200:
+        return mask
 
-    # Line equation
-    slope = (x1 - x0) / (y1 - y0 + 1e-8)
-    intercept = x0
+    # --------------------------------------------------
+    # 3. Hough transform
+    # --------------------------------------------------
+    hspace, angles, dists = hough_line(edges)
 
-    muscle_region = cc < (slope * (rr - y0) + intercept)
+    _, angle_peaks, dist_peaks = hough_line_peaks(
+        hspace, angles, dists, num_peaks=20
+    )
+    if TEST_MODE:
+        print(f"Number of Hough peaks detected: {len(angle_peaks)}")
 
-    # Restrict to upper part only (pectoral area)
-    muscle_region = muscle_region & (rr < H//3)
 
-    # --- 6. Remove muscle from mask ---
+    # --------------------------------------------------
+    # 4. Select best anatomical line
+    # --------------------------------------------------
+    best = None
+    best_score = -np.inf
+
+    for a, d in zip(angle_peaks, dist_peaks):
+        deg = np.degrees(a)
+
+        if not (angle_range[0] < deg < angle_range[1]):
+            continue
+
+        # Prefer steeper lines closer to corner
+        score = abs(deg)
+        score -= abs(d) * 0.01
+        score += (abs(W // 2 - d) * 0.005)  # Give preference to lines closer to the center
+
+        if score > best_score:
+            best_score = score
+            best = (a, d)
+
+    if best is None:
+        return mask
+
+    angle, dist = best
+
+    # --------------------------------------------------
+    # 5. Implicit line mask (no slope/intercept!)
+    #    x*cos(a) + y*sin(a) = d
+    # --------------------------------------------------
+    rr, cc = np.indices((H, W))
+
+    cc_shifted = cc - x_offset
+
+    line_val = (
+        cc_shifted * np.cos(angle) +
+        rr * np.sin(angle)
+    )
+
+    margin = 5  # pixels, conservative buffer
+
+    muscle_region = (
+        (line_val < dist + margin) &
+        (rr < roi_h)
+    )
+
+    # --------------------------------------------------
+    # 6. Optional brightness confirmation (soft)
+    # --------------------------------------------------
+    smooth = gaussian(img, sigma=3)
+    bright_thresh = np.percentile(smooth[mask > 0], 85)
+
+    muscle_region &= smooth > bright_thresh
+
+    # --------------------------------------------------
+    # 7. Sanity check area
+    # --------------------------------------------------
+    area = muscle_region.sum()
+    breast_area = mask.sum()
+
+    if area < 0.01 * breast_area or area > 0.3 * breast_area:
+        return mask
+
+    # --------------------------------------------------
+    # 8. Apply conservatively
+    # --------------------------------------------------
     cleaned_mask = mask.copy()
     cleaned_mask[muscle_region] = 0
 
     return cleaned_mask.astype(np.uint8)
+
+# def remove_pectoral_muscle(img, mask):
+#     """
+#     Automatically detect and remove the pectoral muscle in MLO mammograms.
+#     Handles both left and right MLO views.
+#     """
+
+#     H, W = img.shape
+
+#     # --- 1. Determine whether muscle is left or right ---
+#     left_brightness  = img[0:H//4, 0:W//4].mean()
+#     right_brightness = img[0:H//4, W//2:W].mean()
+
+#     if left_brightness > right_brightness:
+#         roi = img[:H//3, :W//2]       # muscle left
+#         x_offset = 0
+#     else:
+#         roi = img[:H//3, W//2:W]      # muscle right
+#         x_offset = W//2
+
+#     # --- 2. Edge detection ---
+#     edges = canny(roi, sigma=2)
+
+#     # --- 3. Hough transform ---
+#     hspace, angles, dists = hough_line(edges)
+#     h_peaks, angle_peaks, dist_peaks = hough_line_peaks(hspace, angles, dists)
+
+#     valid = []
+#     for a, d in zip(angle_peaks, dist_peaks):
+#         angle_deg = np.degrees(abs(a))
+#         if 30 < angle_deg < 75:   # typical pectoral range
+#             valid.append((a, d))
+
+#     if not valid:
+#         return mask  # do nothing if no valid pectoral line
+
+#     angle, dist = valid[0]
+
+#     # --- 4. Convert Hough line into full-image coordinates ---
+#     y0 = 0
+#     x0 = (dist - y0 * np.sin(angle)) / np.cos(angle) + x_offset
+
+#     y1 = H//3
+#     x1 = (dist - y1 * np.sin(angle)) / np.cos(angle) + x_offset
+
+#     # --- 5. Create region ABOVE the detected pectoral line ---
+#     rr, cc = np.indices(mask.shape)
+
+#     # Line equation
+#     slope = (x1 - x0) / (y1 - y0 + 1e-8)
+#     intercept = x0
+
+#     # muscle_region = cc < (slope * (rr - y0) + intercept)
+#     # muscle_region = (
+#     #     (cc < (slope * (rr - y0) + intercept)) &
+#     #     (rr < H // 3) &
+#     #     (img > np.percentile(img[mask > 0], 80))
+#     # )
+
+#     muscle_region = (
+#         (cc < (slope * (rr - y0) + intercept)) &
+#         (rr < H // 3) &
+#         (img > np.percentile(img[mask > 0], 85))
+#     )
+
+
+
+#     # Restrict to upper part only (pectoral area)
+#     muscle_region = muscle_region & (rr < H//3)
+
+#     # --- 6. Remove muscle from mask ---
+#     cleaned_mask = mask.copy()
+#     cleaned_mask[muscle_region] = 0
+
+#     return cleaned_mask.astype(np.uint8)
 
 # -----------------------------
 # CUSTOM FEATURES
@@ -253,7 +389,6 @@ def fractal_dimension_binary(mask):
 
 
 
-
 def compute_lbp(image, mask, radius=1, n_points=8, method="uniform"):
     lbp = local_binary_pattern(image, n_points, radius, method)
     lbp_roi = lbp[mask > 0]
@@ -271,15 +406,6 @@ def compute_lbp(image, mask, radius=1, n_points=8, method="uniform"):
 # -----------------------------
 # IMAGE LOADING / MASKING
 # -----------------------------
-# def dicom_to_2d_image(dicom_path):
-#     # SimpleITK ReadImage is fine; pydicom often slower unless you optimize.
-#     sitk_img = sitk.ReadImage(dicom_path)
-#     arr3d = sitk.GetArrayFromImage(sitk_img)
-#     arr2d = arr3d[0].astype(np.float32)
-
-#     mn, mx = float(arr2d.min()), float(arr2d.max())
-#     norm = (arr2d - mn) / (mx - mn + 1e-8)
-#     return arr2d, norm
 
 def dicom_to_2d_image(dicom_path):
     sitk_img = sitk.ReadImage(dicom_path)
@@ -325,10 +451,19 @@ def extract_radiomics_features(image_np, mask_np, spacing=(1.0, 1.0)):
     image_sitk.SetSpacing(spacing)
     mask_sitk.SetSpacing(spacing)
 
-    result = EXTRACTOR.execute(image_sitk, mask_sitk)
-    
+    featureVector = EXTRACTOR.execute(image_sitk, mask_sitk)
+    # if DEBUG_PLOT:
+    #     #plot input mask overlay
+    #     fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    #     ax.imshow(image_np, cmap="gray")
+    #     ax.contour(inputMask, levels=[0.5], colors="red", linewidths=1)
+    #     ax.set_title("Radiomics Input Mask Overlay")
+    #     ax.axis("off")
+    #     plt.tight_layout()
+    #     plt.show()
+       
     return {
-        k: v for k, v in result.items()
+        k: v for k, v in featureVector.items()
         if not k.startswith("diagnostics")
     }
 
@@ -346,8 +481,8 @@ def process_one(rel_path):
     try:
         image, norm = dicom_to_2d_image(dicom_path)
 
-
         mask = create_mask(norm)
+        mask = remove_pectoral_muscle(norm, mask)
 
         # If mask empty, skip
         if mask.sum() == 0:
@@ -375,25 +510,8 @@ def process_one(rel_path):
             plt.tight_layout()
             plt.show()
         
-        #remove_pectoral_muscle(image, create_mask(norm))
-
-        # if DEBUG_PLOT:
-        #     plt.title("Mask after muscle removal")
-        #     plt.imshow(mask, cmap="gray")
-        #     plt.axis("off")
-        #     plt.show()
-        # 
-        #  # radiomics = extract_radiomics_features(image, mask)
+        
         features_list = extract_radiomics_features(norm, mask)
-
-        if TEST_MODE:
-            # df = pd.DataFrame(features_list)
-            # print(df.shape)
-            # print(df.isna().sum().sort_values(ascending=False).head())
-
-            print(f"Radiomics features for {rel_path}:")
-            for k, v in features_list.items():
-                print(f"  {k}: {v}")
 
         # custom
         acd = autocorrelation_decay(norm, mask)
@@ -401,7 +519,7 @@ def process_one(rel_path):
         lac = lacunarity(norm, mask)
 
         out = {
-            "path": rel_path,
+            "dicom_path": rel_path,
             "acf_decay": acd,
             "fractal_dimension_mask": fd,
         }
@@ -434,10 +552,11 @@ def load_file_list(input_file, processed_file):
 
 
 def append_processed(processed_file, rel_paths):
-    os.makedirs(os.path.dirname(processed_file), exist_ok=True)
-    with open(processed_file, "a") as f:
-        for p in rel_paths:
-            f.write(p + "\n")
+    if not TEST_MODE:
+        os.makedirs(os.path.dirname(processed_file), exist_ok=True)
+        with open(processed_file, "a") as f:
+            for p in rel_paths:
+                f.write(p + "\n")
 
 
 def flush_csv(rows, output_csv):
