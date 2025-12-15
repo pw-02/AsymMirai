@@ -588,7 +588,7 @@ def main():
                 print("Warning: got None result from worker.")
             
             results_buffer.append(res)
-            processed_buffer.append(res["path"])
+            processed_buffer.append(res["dicom_path"])
 
             if len(results_buffer) >= FLUSH_EVERY:
                 flush_csv(results_buffer, OUTPUT_CSV)
