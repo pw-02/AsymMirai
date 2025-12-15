@@ -268,7 +268,8 @@ def add_cliniclal_data(meta_df: pd.DataFrame, mag_df: pd.DataFrame) -> pd.DataFr
         "age_at_study",
         "tissueden",
         "path_severity",
-        'desc'
+        'desc',
+        'asses'
     ]
 
     agg_map = {
@@ -277,7 +278,8 @@ def add_cliniclal_data(meta_df: pd.DataFrame, mag_df: pd.DataFrame) -> pd.DataFr
     "MARITAL_STATUS_DESC": "first",
     "age_at_study": "first",
     "tissueden": "first",
-    "desc": "first",          # keep exam description
+    "desc": "first",
+    "asses": "first",          # keep exam description
     "path_severity": "max",   # cancer logic
     }
 

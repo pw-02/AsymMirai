@@ -22,16 +22,12 @@ def main():
     # --------------------------------------------------
     features_df = pd.read_csv("radiomics/results/radiomics_features_breast_density_4.csv")
     meta_df = pd.read_csv("data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams.csv")
-
     features_df = features_df.merge(
         meta_df[["dicom_path", "patient_id", "exam_id"]],
         on="dicom_path",
         how="left",
         validate="many_to_one",  # radiomics → metadata
     )
-    
-    # features_df.to_csv("radiomics/results/radiomics_features_breast_density_4_with_metadata.csv",index=False)
-
     # --------------------------------------------------
     # 2. Normalize keys / basic validation
     # --------------------------------------------------
@@ -42,7 +38,7 @@ def main():
     required_meta_cols = {"exam_id", "patient_id", "tissueden"}
     if not required_meta_cols.issubset(meta_df.columns):
         raise ValueError(f"meta_df missing required columns: {required_meta_cols - set(meta_df.columns)}")
-
+    
     # --------------------------------------------------
     # 3. Filter to dense breasts (tissueden == 4)
     # --------------------------------------------------
@@ -122,9 +118,9 @@ def main():
             print("\nTop contributors to PC2:")
             print(loadings["PC2"].abs().sort_values(ascending=False).head(10))
 
-    # --------------------------------------------------
-    # 9. Run t-SNE (visualization only)
-    # --------------------------------------------------
+    # # --------------------------------------------------
+    # # 9. Run t-SNE 
+    # # --------------------------------------------------
     tsne = TSNE(
         n_components=2,
         perplexity=30,
@@ -134,69 +130,60 @@ def main():
     )
     X_tsne = tsne.fit_transform(X_pre)
 
-    plt.scatter(X_tsne[:, 0], X_tsne[:, 1], s=14)
-    plt.title(f"t-SNE of exams (density={DENSITY_FILTER})")
-    plt.xlabel("t-SNE 1")
-    plt.ylabel("t-SNE 2")
-    plt.tight_layout()
-    plt.show()
-
-
-
     # # --------------------------------------------------
     # # 10. Build exam → cancer label
     # # --------------------------------------------------
     # # meta_df must contain: exam_id, cancer (0/1)
 
-    # cancer_map = (
-    # meta_df[["exam_id", "developed_cancer"]]
-    # .drop_duplicates()
-    # .set_index("exam_id")["developed_cancer"]
-    # )
-    # cancer_map = cancer_map.astype("boolean")  # pandas BooleanDtype
-    # cancer_labels = features_df["exam_id"].map(cancer_map)
+    cancer_map = (
+    meta_df[["exam_id", "developed_cancer"]]
+    .drop_duplicates()
+    .set_index("exam_id")["developed_cancer"]
+    )
+    cancer_map = cancer_map.astype("boolean")  # pandas BooleanDtype
+    cancer_labels = features_df["exam_id"].map(cancer_map)
     
-    # mask_cancer = cancer_labels == True
-    # mask_no_cancer = cancer_labels == False
-    # mask_unknown = cancer_labels.isna()
+    mask_cancer = cancer_labels == True
+    mask_no_cancer = cancer_labels == False
+    mask_unknown = cancer_labels.isna()
 
-    # plt.figure(figsize=(7, 6))
+    plt.figure(figsize=(7, 6))
 
-    # # No cancer (background)
-    # plt.scatter(
-    #     X_tsne[mask_no_cancer, 0],
-    #     X_tsne[mask_no_cancer, 1],
-    #     s=12,
-    #     alpha=0.35,
-    #     label="No cancer"
-    # )
+    # No cancer (background)
+    plt.scatter(
+        X_tsne[mask_no_cancer, 0],
+        X_tsne[mask_no_cancer, 1],
+        s=12,
+        alpha=0.35,
+        label="No cancer"
+    )
 
-    # # Developed cancer (highlight)
-    # plt.scatter(
-    #     X_tsne[mask_cancer, 0],
-    #     X_tsne[mask_cancer, 1],
-    #     s=30,
-    #     edgecolor="black",
-    #     linewidth=0.6,
-    #     label="Developed cancer"
-    # )
+    # Developed cancer (highlight)
+    plt.scatter(
+        X_tsne[mask_cancer, 0],
+        X_tsne[mask_cancer, 1],
+        s=30,
+        edgecolor="black",
+        linewidth=0.6,
+        label="Developed cancer"
+    )
 
-    # # Unknown outcome (optional)
-    # if mask_unknown.any():
-    #     plt.scatter(
-    #         X_tsne[mask_unknown, 0],
-    #         X_tsne[mask_unknown, 1],
-    #         s=12,
-    #         alpha=0.2,
-    #         label="Unknown outcome"
-    #     )
+    # Unknown outcome (optional)
+    if mask_unknown.any():
+        plt.scatter(
+            X_tsne[mask_unknown, 0],
+            X_tsne[mask_unknown, 1],
+            s=12,
+            alpha=0.2,
+            label="Unknown outcome"
+        )
 
-    # plt.legend()
-    # plt.title("t-SNE of exams (density=4)\nCancer outcome overlay")
-    # plt.xlabel("t-SNE 1")
-    # plt.ylabel("t-SNE 2")
-    # plt.tight_layout()
-    # plt.show()
+    plt.legend()
+    plt.title("t-SNE of exams (density=4)\nCancer outcome overlay")
+    plt.xlabel("t-SNE 1")
+    plt.ylabel("t-SNE 2")
+    plt.tight_layout()
+    plt.show()
 
 
 

@@ -25,7 +25,7 @@ from skimage.filters import sobel, gaussian
 # CONFIG
 # -----------------------------
 
-TEST_MODE = True      # set True for quick debugging on few images
+TEST_MODE = False      # set True for quick debugging on few images
 DEBUG_PLOT = False    # show intermediate images for debugging
 
 if TEST_MODE:
