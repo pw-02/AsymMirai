@@ -8,8 +8,13 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.pipeline import Pipeline
 
+
 DEBUG_MODE = False
 DENSITY_FILTER = 4  # set to None to disable density filteringS
+
+PLOT_BY_FEATURE = "Caner"  # e.g., "Caner" to color by that feature, or None for no coloring
+
+
 def safe_numeric(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     out = df[cols].copy()
     for c in cols:
@@ -21,6 +26,7 @@ def main():
     # 1. Load data
     # --------------------------------------------------
     features_df = pd.read_csv("radiomics/results/radiomics_features_breast_density_4.csv")
+    #features_df = pd.read_csv("radiomics/results/radiomics_features_cc.csv")
     meta_df = pd.read_csv("data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams.csv")
     features_df = features_df.merge(
         meta_df[["dicom_path", "patient_id", "exam_id"]],
@@ -42,11 +48,11 @@ def main():
     # --------------------------------------------------
     # 3. Filter to dense breasts (tissueden == 4)
     # --------------------------------------------------
-    meta_dense = meta_df.loc[meta_df["tissueden"] == DENSITY_FILTER, ["exam_id"]]
-    before = len(features_df)
-    features_df = features_df[features_df["exam_id"].isin(meta_dense["exam_id"])].copy()
-    print(f"After density={DENSITY_FILTER} filter: {features_df.shape[0]} rows (from {before})")
-
+    if DENSITY_FILTER is not None:
+        meta_dense = meta_df.loc[meta_df["tissueden"] == DENSITY_FILTER, ["exam_id"]]
+        before = len(features_df)
+        features_df = features_df[features_df["exam_id"].isin(meta_dense["exam_id"])].copy()
+        print(f"After density={DENSITY_FILTER} filter: {features_df.shape[0]} rows (from {before})")
     # # --------------------------------------------------
     # # 4. Keep ONE exam per exam”
     # # --------------------------------------------------
@@ -56,7 +62,8 @@ def main():
         .sample(n=1, random_state=42)
         .copy()
     )
-    # assert features_df["exam_id"].is_unique
+    assert features_df["exam_id"].is_unique
+    print(f"After keeping one row per exam: {features_df.shape[0]} rows")
     
     # --------------------------------------------------
     # 5. Build feature matrix (explicitly exclude non-features)
@@ -70,7 +77,8 @@ def main():
     feature_cols = [c for c in features_df.columns if c not in non_feature_cols]
 
     # Optional: if you only want “radiomics-like” columns, uncomment:
-    # feature_cols = [c for c in feature_cols if c.startswith("original")]
+    feature_cols = [c for c in feature_cols if c.startswith("original")]
+
     if len(feature_cols) == 0:
         raise ValueError("No feature columns found after exclusions.")
 
@@ -81,16 +89,26 @@ def main():
     # --------------------------------------------------
     # 6. Preprocessing + PCA pipeline
     # --------------------------------------------------
-    pipe = Pipeline(steps=[
-        ("impute", SimpleImputer(strategy="median")),
-        ("var", VarianceThreshold(threshold=1e-8)),
-        ("scale", RobustScaler()),
-        ("pca", PCA(n_components=30, random_state=42)),
-    ])
+    #run this if num features are > 30
+    if X.shape[1] <= 30:
+        print(f"Feature count {X.shape[1]} <= 30, skipping PCA step.")
+        pipe = Pipeline(steps=[
+            ("impute", SimpleImputer(strategy="median")),
+            ("var", VarianceThreshold(threshold=1e-8)),
+            ("scale", RobustScaler()),
+        ])
+    else:
+        pipe = Pipeline(steps=[
+            ("impute", SimpleImputer(strategy="median")),
+            ("var", VarianceThreshold(threshold=1e-8)),
+            ("scale", RobustScaler()),
+            ("pca", PCA(n_components=30, random_state=42)),
+        ])
 
     X_pre = pipe.fit_transform(X)
-    pca = pipe.named_steps["pca"]
-    print("\nNumber of PCA components:", pca.n_components_)
+    pca = pipe.named_steps["pca"] if "pca" in pipe.named_steps else None
+    if pca is not None:
+        print("\nNumber of PCA components:", pca.n_components_)
 
     # --------------------------------------------------
     # 7. Inspect which features were kept / dropped (VarianceThreshold)
@@ -135,55 +153,83 @@ def main():
     # # --------------------------------------------------
     # # meta_df must contain: exam_id, cancer (0/1)
 
-    cancer_map = (
-    meta_df[["exam_id", "developed_cancer"]]
-    .drop_duplicates()
-    .set_index("exam_id")["developed_cancer"]
-    )
-    cancer_map = cancer_map.astype("boolean")  # pandas BooleanDtype
-    cancer_labels = features_df["exam_id"].map(cancer_map)
-    
-    mask_cancer = cancer_labels == True
-    mask_no_cancer = cancer_labels == False
-    mask_unknown = cancer_labels.isna()
+    if "cancer" in PLOT_BY_FEATURE.lower():
+        print("\nPlotting by cancer outcome...")
 
-    plt.figure(figsize=(7, 6))
+        cancer_map = (
+        meta_df[["exam_id", "developed_cancer"]]
+        .drop_duplicates()
+        .set_index("exam_id")["developed_cancer"]
+        )
+        cancer_map = cancer_map.astype("boolean")  # pandas BooleanDtype
+        cancer_labels = features_df["exam_id"].map(cancer_map)
+        
+        mask_cancer = cancer_labels == True
+        mask_no_cancer = cancer_labels == False
+        mask_unknown = cancer_labels.isna()
 
-    # No cancer (background)
-    plt.scatter(
-        X_tsne[mask_no_cancer, 0],
-        X_tsne[mask_no_cancer, 1],
-        s=12,
-        alpha=0.35,
-        label="No cancer"
-    )
+        plt.figure(figsize=(7, 6))
 
-    # Developed cancer (highlight)
-    plt.scatter(
-        X_tsne[mask_cancer, 0],
-        X_tsne[mask_cancer, 1],
-        s=30,
-        edgecolor="black",
-        linewidth=0.6,
-        label="Developed cancer"
-    )
-
-    # Unknown outcome (optional)
-    if mask_unknown.any():
+        # No cancer (background)
         plt.scatter(
-            X_tsne[mask_unknown, 0],
-            X_tsne[mask_unknown, 1],
+            X_tsne[mask_no_cancer, 0],
+            X_tsne[mask_no_cancer, 1],
             s=12,
-            alpha=0.2,
-            label="Unknown outcome"
+            alpha=0.35,
+            label="No cancer"
         )
 
-    plt.legend()
-    plt.title("t-SNE of exams (density=4)\nCancer outcome overlay")
-    plt.xlabel("t-SNE 1")
-    plt.ylabel("t-SNE 2")
-    plt.tight_layout()
-    plt.show()
+        # Developed cancer (highlight)
+        plt.scatter(
+            X_tsne[mask_cancer, 0],
+            X_tsne[mask_cancer, 1],
+            s=30,
+            edgecolor="black",
+            linewidth=0.6,
+            label="Developed cancer"
+        )
+
+        # Unknown outcome (optional)
+        if mask_unknown.any():
+            plt.scatter(
+                X_tsne[mask_unknown, 0],
+                X_tsne[mask_unknown, 1],
+                s=12,
+                alpha=0.2,
+                label="Unknown outcome"
+            )
+
+        plt.legend()
+        plt.title("t-SNE of exams (Breast density=4)\nCancer outcome highlighted")
+        plt.xlabel("t-SNE dimension 1")
+        plt.ylabel("t-SNE dimension 2")
+        plt.tight_layout()
+        plt.show()
+    
+    elif 'birad' in PLOT_BY_FEATURE.lower():
+        print("\nPlotting by BIRAD...")
+
+        birad_map = (
+        meta_df[["exam_id", "birads"]]
+        .drop_duplicates()
+        .set_index("exam_id")["birads"]
+        )
+        birad_labels = features_df["exam_id"].map(birad_map)
+
+        plt.figure(figsize=(7, 6))
+        sc = plt.scatter(
+            X_tsne[:, 0],
+            X_tsne[:, 1],
+            c=birad_labels,
+            s=14,
+            cmap="viridis",
+        )
+        plt.colorbar(sc, label="BIRAD")
+        plt.title("t-SNE of exams (Breast density=4) colored by BIRAD")
+        plt.xlabel("t-SNE dimension 1")
+        plt.ylabel("t-SNE dimension 2")
+        plt.tight_layout()
+        plt.show()
 
 
 

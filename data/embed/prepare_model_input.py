@@ -101,6 +101,16 @@ def get_worst_br(group):
     worst_br_val = min(group.asses.map(br_to_val_dict).tolist())
     return val_to_br_dict.get(worst_br_val, '')
 
+BIRAD_MAPPING_SCREENING = {
+    'A': 0, # 'A' maps to birads 0
+    'B': 2, # 'B' maps to birads 2
+    'N': 1,  # 'N' maps to birads 1
+    'P': 3, # 'P' maps to birads 3
+    'S': 4, # 'S' maps to birads 4
+    'M': 5, # 'M' maps to birads 5
+    'K': 6  # 'K' maps to birads 6
+}
+
 def get_incomplete_exams(df: pd.DataFrame) -> list:
     incomplete_exams = []
 
@@ -410,6 +420,10 @@ if __name__ == "__main__":
             "ImageLateralityFinal": "laterality",
         }
     )
+
+    #for asses column, update values to be integers based on BIRAD_MAPPING_SCREENING
+    meta_df['birads'] = meta_df['asses'].map(BIRAD_MAPPING_SCREENING)
+
 
     # ---------------------------
     #check if png files already exist in s3

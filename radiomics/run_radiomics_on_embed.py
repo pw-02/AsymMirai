@@ -482,7 +482,7 @@ def process_one(rel_path):
         image, norm = dicom_to_2d_image(dicom_path)
 
         mask = create_mask(norm)
-        mask = remove_pectoral_muscle(norm, mask)
+        # mask = remove_pectoral_muscle(norm, mask)
 
         # If mask empty, skip
         if mask.sum() == 0:
