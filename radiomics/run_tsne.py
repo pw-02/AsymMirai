@@ -8,11 +8,20 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.pipeline import Pipeline
 
+# --------------------------------------------------
+# Global plotting style (paper-friendly)
+# --------------------------------------------------
+plt.rcParams.update({
+    "font.size": 11,
+    "axes.titlesize": 14,
+    "axes.labelsize": 12,
+    "legend.fontsize": 10,
+})
 
 DEBUG_MODE = False
-DENSITY_FILTER = 4  # set to None to disable density filteringS
+DENSITY_FILTER = None  # set to None to disable density filteringS
 
-PLOT_BY_FEATURE = "Caner"  # e.g., "Caner" to color by that feature, or None for no coloring
+PLOT_BY_FEATURE = "birads"  # e.g., "Cancer", 'birads'
 
 
 def safe_numeric(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
@@ -25,8 +34,8 @@ def main():
     # --------------------------------------------------
     # 1. Load data
     # --------------------------------------------------
-    features_df = pd.read_csv("radiomics/results/radiomics_features_breast_density_4.csv")
-    #features_df = pd.read_csv("radiomics/results/radiomics_features_cc.csv")
+    #features_df = pd.read_csv("radiomics/results/radiomics_features_density_4_nw.csv")
+    features_df = pd.read_csv("radiomics/results/radiomics_features_cc.csv")
     meta_df = pd.read_csv("data/embed/asymirai_input/EMBED_OpenData_metadata_screening_2D_complete_exams.csv")
     features_df = features_df.merge(
         meta_df[["dicom_path", "patient_id", "exam_id"]],
@@ -102,7 +111,7 @@ def main():
             ("impute", SimpleImputer(strategy="median")),
             ("var", VarianceThreshold(threshold=1e-8)),
             ("scale", RobustScaler()),
-            ("pca", PCA(n_components=30, random_state=42)),
+            ("pca", PCA(n_components=6, random_state=42)),
         ])
 
     X_pre = pipe.fit_transform(X)
@@ -156,79 +165,113 @@ def main():
     if "cancer" in PLOT_BY_FEATURE.lower():
         print("\nPlotting by cancer outcome...")
 
+        # --- exam → cancer mapping (boolean-safe)
         cancer_map = (
-        meta_df[["exam_id", "developed_cancer"]]
-        .drop_duplicates()
-        .set_index("exam_id")["developed_cancer"]
+            meta_df[["exam_id", "developed_cancer"]]
+            .drop_duplicates()
+            .set_index("exam_id")["developed_cancer"]
+            .astype("boolean")
         )
-        cancer_map = cancer_map.astype("boolean")  # pandas BooleanDtype
+
         cancer_labels = features_df["exam_id"].map(cancer_map)
-        
+
+        # Masks
         mask_cancer = cancer_labels == True
         mask_no_cancer = cancer_labels == False
         mask_unknown = cancer_labels.isna()
 
-        plt.figure(figsize=(7, 6))
+        # --- Plot
+        plt.figure(figsize=(7.5, 6.5))
 
-        # No cancer (background)
+        # Background: no cancer
         plt.scatter(
             X_tsne[mask_no_cancer, 0],
             X_tsne[mask_no_cancer, 1],
-            s=12,
-            alpha=0.35,
+            s=32, # smaller size for background points
+            c="#718da23a",  # light red (colorblind-safe)",
+            alpha=0.4,
             label="No cancer"
         )
 
-        # Developed cancer (highlight)
+        # Highlight: developed cancer
         plt.scatter(
             X_tsne[mask_cancer, 0],
             X_tsne[mask_cancer, 1],
-            s=30,
-            edgecolor="black",
-            linewidth=0.6,
+            s=32,
+            c="#d62728",  # deep red (colorblind-safe)
+            edgecolors="black",
+            linewidth=0.5,
             label="Developed cancer"
         )
 
-        # Unknown outcome (optional)
+        # Optional: unknown outcome
         if mask_unknown.any():
             plt.scatter(
                 X_tsne[mask_unknown, 0],
                 X_tsne[mask_unknown, 1],
-                s=12,
+                s=10,
+                c="gray",
                 alpha=0.2,
                 label="Unknown outcome"
             )
 
-        plt.legend()
-        plt.title("t-SNE of exams (Breast density=4)\nCancer outcome highlighted")
+        plt.legend(frameon=False)
+        plt.title(f"t-SNE of exams (Breast density = {DENSITY_FILTER}) (Population Size {len(features_df)})") if DENSITY_FILTER is not None else plt.title(f"t-SNE of all screening exams (Population Size {len(features_df)})")
         plt.xlabel("t-SNE dimension 1")
         plt.ylabel("t-SNE dimension 2")
+        plt.xticks([])
+        plt.yticks([])
         plt.tight_layout()
+
+        # Save for paper + slides
+        plt.savefig("tsne_cancer_overlay.pdf", dpi=300, bbox_inches="tight")
+        plt.savefig("tsne_cancer_overlay.png", dpi=300, bbox_inches="tight")
         plt.show()
-    
-    elif 'birad' in PLOT_BY_FEATURE.lower():
-        print("\nPlotting by BIRAD...")
 
-        birad_map = (
-        meta_df[["exam_id", "birads"]]
-        .drop_duplicates()
-        .set_index("exam_id")["birads"]
-        )
-        birad_labels = features_df["exam_id"].map(birad_map)
 
-        plt.figure(figsize=(7, 6))
-        sc = plt.scatter(
-            X_tsne[:, 0],
-            X_tsne[:, 1],
-            c=birad_labels,
-            s=14,
-            cmap="viridis",
+    # ==================================================
+    # Plot by BI-RADS
+    # ==================================================
+    elif "birad" in PLOT_BY_FEATURE.lower():
+        print("\nPlotting by BI-RADS...")
+
+        # --- exam → BI-RADS mapping
+        birads_map = (
+            meta_df[["exam_id", "birads"]]
+            .drop_duplicates()
+            .set_index("exam_id")["birads"]
         )
-        plt.colorbar(sc, label="BIRAD")
-        plt.title("t-SNE of exams (Breast density=4) colored by BIRAD")
+
+        birads_labels = features_df["exam_id"].map(birads_map)
+
+        # --- Plot
+        plt.figure(figsize=(7.5, 6.5))
+
+        birads_unique = sorted(birads_labels.dropna().unique())
+        colors = plt.cm.tab10.colors  # categorical, colorblind-safe
+
+        for i, b in enumerate(birads_unique):
+            mask = birads_labels == b
+            plt.scatter(
+                X_tsne[mask, 0],
+                X_tsne[mask, 1],
+                s=14,
+                color=colors[i % len(colors)],
+                alpha=0.75,
+                label=f"BI-RADS {b}"
+            )
+
+        plt.legend(title="BI-RADS", frameon=False)
+        plt.title(f"t-SNE of exams (Breast density = {DENSITY_FILTER}) (Population Size {len(features_df)})") if DENSITY_FILTER is not None else plt.title(f"t-SNE of all screening exams (Population Size {len(features_df)})")
         plt.xlabel("t-SNE dimension 1")
         plt.ylabel("t-SNE dimension 2")
+        plt.xticks([])
+        plt.yticks([])
         plt.tight_layout()
+
+        # Save for paper + slides
+        plt.savefig("tsne_birads_overlay.pdf", dpi=300, bbox_inches="tight")
+        plt.savefig("tsne_birads_overlay.png", dpi=300, bbox_inches="tight")
         plt.show()
 
 
